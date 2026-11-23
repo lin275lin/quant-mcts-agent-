@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh-CN">
+<!-- HTML 标签用来划分内容。head 是浏览器读的设置，body 才是页面显示的内容。 -->
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>个股因子检索工具</title>
+  <!-- style 内写 CSS。h1 等名称选中对应标签，.callout 这样的名称选中具有该 class 的元素。 -->
+  <style>
+    /* -- 开头的是可复用的颜色变量。下面用 var(...) 取出对应的颜色。 */
+    :root { color-scheme: light; --ink: #192c36; --muted: #405963; --line: #cddbdd; --accent: #0a6053; --surface: #eaf5f0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #fff; color: var(--ink); font: 16px/1.75 "Microsoft YaHei", "PingFang SC", sans-serif; }
+    main { max-width: 920px; margin: auto; padding: 42px clamp(18px, 5vw, 46px) 64px; }
+    header { border-bottom: 3px solid var(--accent); padding-bottom: 16px; }
+    h1, h2, h3 { line-height: 1.4; }
+    h1 { margin: 0; font-size: clamp(30px, 5vw, 43px); }
+    h2 { margin: 34px 0 10px; font-size: 24px; }
+    a { color: var(--accent); text-underline-offset: 3px; }
+    p { margin: 9px 0; }
+    .note { color: var(--muted); }
+    .callout { border-left: 3px solid var(--accent); background: var(--surface); padding: 9px 13px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 9px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+    th { background: var(--surface); }
+    th code { white-space: nowrap; }
+    code, pre { font-family: Consolas, monospace; }
+    pre { padding: 12px; overflow-x: auto; background: var(--surface); }
+  </style>
+</head>
+<body>
+<!-- main 标识页面主体。每个 section 是一个章节，aria-labelledby 指向该章节的标题 ID。 -->
+<main>
+  <header>
+    <h1>个股因子检索工具</h1>
+    <p>输入股票代码或精确名称，获取最近可用日的 20 个原始因子。14 个价量因子加上 SIZE、EP、BP、SP、ROE、REVG，一共 20 项，与评分方案使用的名单相同。</p>
+  </header>
+
+  <section aria-labelledby="files">
+    <h2 id="files">去哪个文件找代码？</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="公开入口和内部实现">
+      <!-- 表格用 tr 表示一行，th 表示表头，td 表示数据格。href 里用相对路径跳转到源码。 -->
+      <table>
+        <thead><tr><th scope="col">文件</th><th scope="col">负责什么</th></tr></thead>
+        <tbody>
+          <tr><td><a href="../../tools/fetch_stock_factors/fetch_stock_factors.py"><code>fetch_stock_factors.py</code></a></td><td>公开入口、并行组织查询、按固定顺序组装 20 个因子。</td></tr>
+          <tr><td><a href="../../tools/fetch_stock_factors/baostock_session.py"><code>baostock_session.py</code></a></td><td>登录、登出、连接复用和断线重连。</td></tr>
+          <tr><td><a href="../../tools/fetch_stock_factors/_symbols.py"><code>_symbols.py</code></a></td><td>把股票代码或名称转成统一格式。</td></tr>
+          <tr><td><a href="../../tools/fetch_stock_factors/_cache.py"><code>_cache.py</code></a></td><td>打开 SQLite，查询、保存和清理缓存。</td></tr>
+          <tr><td><a href="../../tools/fetch_stock_factors/_sources.py"><code>_sources.py</code></a></td><td>请求日线、市值和财务接口，整理返回字段。</td></tr>
+          <tr><td><a href="../../tools/fetch_stock_factors/_helpers.py"><code>_helpers.py</code></a></td><td>用传入的数据计算 A–E 各组价量因子及估值倒数。每组有自己的计算函数。</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">包的 <code>__init__.py</code> 只转发公开入口。Agent 可以直接从 <code>tools.fetch_stock_factors</code> 导入。</p>
+  </section>
+
+  <section aria-labelledby="fields">
+    <h2 id="fields">各数据源提供什么？</h2>
+    <p>默认接口写在<a href="../../tools/fetch_stock_factors/_sources.py">_sources.py</a> 中。<code>config.py</code> 维护因子名单和日线回看范围。AkShare 是调用接口的 Python 库，表里列出它实际访问的数据源。用六位股票代码可直接查询，用股票名称则会另外查名称表。</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="数据源字段和对应因子">
+      <table>
+        <thead><tr><th scope="col">因子</th><th scope="col">数据源</th><th scope="col">怎么算</th></tr></thead>
+        <tbody>
+          <tr><td>14 个价量因子</td><td>BaoStock 前复权日线</td><td>用价格、成交量、成交额和换手率计算原有指标。</td></tr>
+          <tr><td><code>EP</code>、<code>BP</code>、<code>SP</code></td><td>BaoStock 日线中的 <code>peTTM</code>、<code>pbMRQ</code>、<code>psTTM</code></td><td>对有效的正倍数取倒数。</td></tr>
+          <tr><td><code>ROE</code></td><td>东方财富财务接口披露的 <code>ROEJQ</code></td><td>取最新报告期的加权净资产收益率，再把百分数换为小数。</td></tr>
+          <tr><td><code>REVG</code></td><td>东方财富财务接口披露的 <code>TOTALOPERATEREVETZ</code></td><td>读取最新报告期的营业收入同比。</td></tr>
+          <tr><td><code>SIZE</code></td><td>百度直接提供的总市值</td><td>先把亿元换为元，再取自然对数。</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>缺失的估值、总市值或财务字段保留缺失值。<code>data_end_date</code> 限制日线及随日线返回的估值。市值和财务读取各自最新快照，用于历史回测前还需要对齐日期。</p>
+  </section>
+
+  <section aria-labelledby="speed">
+    <h2 id="speed">并行查询与本地缓存</h2>
+    <p class="callout">日线、市值和财务并行查询。普通单次查询需要远程日线时，会登录、查询、退出。服务器也可提前登录，在同一进程内查询不同股票时复用连接。SQLite 则负责同一查询的缓存命中。</p>
+    <p>程序使用 Python 自带的 <code>sqlite3.connect()</code>，首次尝试缓存时创建文件 <code>Project/storage/cache/stock_factor_sources.sqlite3</code>。<code>source_cache</code> 表有 <code>key</code>、<code>expires_at</code> 和 <code>payload</code> 三列。<code>payload</code> 保存接口数据，行情、市值与财务记录保存 15 分钟，名称表保存 24 小时。</p>
+    <p>在文件资源管理器打开 <code>Project/storage/cache</code> 即可查看数据库文件。目录中的 <code>.gitignore</code> 让数据库文件略过 Git 的变更列表。从 <code>Project</code> 目录执行下面的命令，可用 <code>sqlite3</code> 只读查看键、过期时间和保存的数据。<code>substr</code> 只截取前 160 个字符，以免整张日线表刷满终端。</p>
+    <pre><code>sqlite3 -readonly storage/cache/stock_factor_sources.sqlite3 "SELECT key, datetime(expires_at, 'unixepoch', 'localtime'), substr(payload, 1, 160) FROM source_cache;"</code></pre>
+  </section>
+
+  <section aria-labelledby="session">
+    <h2 id="session">怎样提前登录并复用连接？</h2>
+    <p>常驻进程可在后台调用 <code>login_baostock()</code>，登录完成后再跑依赖日线的工作。这样应用可以先启动，已有连接可直接用于随后到来的查询。重用只在同一个 Python 进程里生效。BaoStock 共用的连接由锁保护，断线后会重新登录并重试一次。</p>
+    <pre><code>from tools.fetch_stock_factors import fetch_stock_factor_vector, login_baostock, logout_baostock
+
+login_baostock()
+try:
+    first = fetch_stock_factor_vector("600519")
+    second = fetch_stock_factor_vector("000001")
+finally:
+    logout_baostock()</code></pre>
+    <p class="note">示例展示同一进程查两只股票。接入服务器时，由启动阶段的后台任务调用登录，再由关闭阶段调用退出。第一次远程登录依然耗时，之前一次实测登录约 76 秒。当前项目提供了调用接口，服务器启动流程仍待接入。</p>
+  </section>
+
+  <section aria-labelledby="fast">
+    <h2 id="fast">个股首次查询还能多快？</h2>
+    <p>用三个接口并行做了端到端测速。腾讯日线用于计算价量因子，东方财富估值提供同一交易日的 PE、PB、PS 和总市值，原财务接口直接返回 ROE 和营收同比。测速使用 2026 年 11 月 23 日的数据，从发起请求到算完因子计时，跳过项目的 SQLite 缓存。</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="三接口并行的首次查询实测">
+      <table>
+        <thead><tr><th scope="col">股票</th><th scope="col">返回日线</th><th scope="col">有效因子</th><th scope="col">总耗时</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">600519</th><td>184 根</td><td>20 / 20</td><td>1.20 秒</td></tr>
+          <tr><th scope="row">000001</th><td>184 根</td><td>20 / 20</td><td>1.47 秒</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>这是两只股票的一次实测。候选方案上线前还需核对更多样本的日期、复权、换手率单位和数据覆盖。公共接口请求仍会受服务端频次限制，默认工具仍使用原数据源。</p>
+    <p>需要在线补数据时，可以按供应商分别排队限速，并合并同一只股票、同一截止日的重复请求。东方财富的估值和财务接口应一起计入该源的请求量。如果服务器返回频次限制，按它给的等待时间重试，已有本地记录可标记日期后继续读取。要让新查询也保持稳定延迟，所需历史数据应提前入库。</p>
+    <p>回测和反复查看股票池时，适合收盘后批量同步原始数据，写入长期本地历史库。查询直接读本地，日线和估值按交易日更新，财务按公告日补齐。Tushare 的日线、每日估值和复权因子支持按交易日取数据，财务指标可取加权 ROE 和营收同比，调用频次由积分权限决定。<a href="https://tushare.pro/document/2?doc_id=27">日线</a> · <a href="https://tushare.pro/document/2?doc_id=32">每日指标</a> · <a href="https://tushare.pro/document/2?doc_id=28">复权因子</a> · <a href="https://tushare.pro/document/2?doc_id=79">财务指标</a> · <a href="https://tushare.pro/document/1?doc_id=290">频次权限</a></p>
+  </section>
+
+  <section aria-labelledby="usage">
+    <h2 id="usage">怎么调用？</h2>
+    <p>从 <code>Project</code> 目录执行。</p>
+    <!-- pre 保留代码示例的原始换行和空格。浏览器只显示这些命令。 -->
+    <pre><code>python tools/fetch_stock_factors/fetch_stock_factors.py 600519
+python tools/fetch_stock_factors/fetch_stock_factors.py 600519 --end-date 2026-11-20</code></pre>
+    <pre><code>from tools.fetch_stock_factors import fetch_stock_factor_vector
+
+result = fetch_stock_factor_vector("600519.SH")
+print(result["data_date"])
+print(result["vector"]["MOM20"])</code></pre>
+    <p><code>vector</code> 可以按因子名读取，<code>vector_values</code> 是对应的列表，两者使用 <code>FACTOR_NAMES</code> 的顺序。需要查看这些原始因子怎样合成决策信号，可继续读<a href="03-个股评分与MCTS系数搜索.html">个股评分说明</a>。</p>
+  </section>
+</main>
+</body>
+</html>

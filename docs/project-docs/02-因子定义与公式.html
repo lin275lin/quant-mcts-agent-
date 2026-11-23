@@ -228,7 +228,7 @@
   <tr><td><var>A</var><sub>t</sub></td><td>成交额（元）</td><td>—</td></tr>
   <tr><td><var>TO</var><sub>t</sub></td><td>换手率（%）</td><td>行情表直接给出</td></tr>
   <tr><td><var>VWAP</var><sub>t</sub></td><td>当日成交均价</td><td><code>A<sub>t</sub> / V<sub>t</sub></code>；源未给时按此计算</td></tr>
-  <tr><td><var>MC</var><sub>t</sub></td><td>流通市值（元）</td><td>来自 <code>valuation_daily.circ_mv</code></td></tr>
+  <tr><td><var>MC</var><sub>t</sub></td><td>总市值（元）</td><td>历史数据来自 <code>valuation_daily.total_mv</code>，单日工具直接读取总市值</td></tr>
   <tr><td><var>r</var><sub>t</sub></td><td>日收益率</td><td><code>C<sub>t</sub> / C<sub>t−1</sub> − 1</code></td></tr>
   <tr><td><var>T</var></td><td>交易日集合</td><td>全项目唯一交易日历；停牌日有记录但 <var>V</var>=0</td></tr>
 </table>
@@ -288,7 +288,7 @@
   <tr><td>F07</td><td>下行波动率</td><td><code>DVOL20</code></td><td>波动</td><td><var>C</var></td><td>20</td><td>负向</td></tr>
   <tr><td>F08</td><td>换手率均值</td><td><code>TURN20</code></td><td>流动性</td><td><var>TO</var></td><td>20</td><td>负向</td></tr>
   <tr><td>F09</td><td>Amihud 非流动性</td><td><code>AMIHUD20</code></td><td>流动性</td><td><var>C</var>、<var>A</var></td><td>20</td><td>正向</td></tr>
-  <tr><td>F10</td><td>流通市值对数</td><td><code>SIZE</code></td><td>流动性</td><td><var>MC</var></td><td>1</td><td>负向</td></tr>
+  <tr><td>F10</td><td>总市值对数</td><td><code>SIZE</code></td><td>流动性与规模</td><td><var>MC</var></td><td>1</td><td>负向</td></tr>
   <tr><td>F11</td><td>日内动量</td><td><code>INTRA20</code></td><td>量价形态</td><td><var>P</var>、<var>A</var>、<var>V</var></td><td>20</td><td>正向</td></tr>
   <tr><td>F12</td><td>量价相关性</td><td><code>CORR20</code></td><td>量价形态</td><td><var>C</var>、<var>V</var></td><td>20</td><td>负向</td></tr>
   <tr><td>F13</td><td>量比</td><td><code>VR</code></td><td>量价形态</td><td><var>V</var></td><td>5 / 20</td><td>正向</td></tr>
@@ -386,7 +386,7 @@
 </article>
 
 <article class="factor">
-  <h3>F10　流通市值对数<small>SIZE</small></h3>
+  <h3>F10　总市值对数<small>SIZE</small></h3>
   <p class="src"><b>公式来源：</b>规模因子原始定义见 [8]；三因子模型中的市值维度见 [9]</p>
   <div class="formula"><var>SIZE</var> = ln(<var>MC</var><sub>t</sub>)</div>
   <p>规模因子；小市值溢价在 A 股长期存在，先验为负向（值越小越好）。</p>
@@ -504,7 +504,7 @@
 
 <!-- ============================================================ -->
 <h2 id="s5">五、因子分组与权重搜索空间</h2>
-<p>20 个因子直接搜权重，5 档取值共 5²⁰ ≈ 9.5×10¹³ 种组合，MCTS 无法覆盖。因此<b>组内等权、只搜组间权重</b>，把维度压到 6。</p>
+<p>20 个因子直接搜权重，四档取值共有 4²⁰，约 1.1 万亿种组合。项目用<b>组内等权、组间加权</b>把搜索维度压到最多 6。</p>
 
 <table>
   <tr><th style="width:120px">组</th><th style="width:190px">成员</th><th>组内合成</th><th style="width:96px">组内因子数</th></tr>
@@ -518,10 +518,10 @@
 
 <p>权重搜索：</p>
 <ul>
-  <li>每组权重取 {0, 0.25, 0.5, 0.75, 1.0}，六组共 5⁶ = 15625 种组合，<b>可穷举</b>，正好用来验证 MCTS 的结果；</li>
-  <li>MVP 阶段只用 A–E 五组（不含基本面），5⁵ = 3125 种，秒级穷举；</li>
+  <li>A–F 六组全纳入评分。待搜组的档位为 {0.25, 0.5, 0.75, 1.0}，六组都待搜时有 4⁶ = 4096 个档位组合，可以用穷举对照 MCTS。</li>
+  <li>MCTS 也可以只搜索指定组。其余组继续使用固定系数，所有组的有效权重合计为 1。</li>
   <li>综合得分：<span class="mono">score = Σ w<sub>g</sub> · z<sub>g</sub></span>，其中 z<sub>g</sub> 为组内等权平均后再次标准化的值；</li>
-  <li>组权重归一化后乘 100 作为目标仓位百分比，再交给风控层裁剪。</li>
+  <li>组权重乘组分后相加，得到个股综合信号。买卖阈值和仓位规则详见<a href="03-个股评分与MCTS系数搜索.html">个股评分方案</a>。</li>
 </ul>
 
 <!-- ============================================================ -->
@@ -600,7 +600,7 @@
   <dd>平均每天有多少比例的流通股在换手。<br><em>为什么选：</em>衡量“热闹程度”。太热闹通常意味着投机资金扎堆，后面容易一地鸡毛，所以方向设为负：越热闹越谨慎。<br><em>要小心：</em>小盘股、次新股换手天然高，不控制市值会误伤。</dd>
   <dt>F09　Amihud 非流动性</dt>
   <dd>花一块钱能把价格推多高。<br><em>为什么选：</em>衡量买卖的摩擦成本。想买一千万，一买价格就飞，说明这股票不好交易，投资者会要求更高回报补偿，这就是“流动性溢价”。机构建仓最怕这个。<br><em>要小心：</em>冷门股容易出极端值，必须去极值。</dd>
-  <dt>F10　流通市值对数</dt>
+  <dt>F10　总市值对数</dt>
   <dd>公司多大。<br><em>为什么选：</em>A 股长期有“小盘股溢价”。但更重要的是：它必须作为控制变量放进模型，否则所有因子最后都变成“选小盘股”，看起来有效其实是错觉。<br><em>要小心：</em>市值数据缺失时不能用 0 代替。</dd>
 </dl>
 <h3>D 组：量价形态——资金是怎么动的</h3>
