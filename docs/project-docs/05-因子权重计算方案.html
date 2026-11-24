@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>因子权重实验 · IC、MCTS 与反向传播</title>
+  <style>
+    :root { color-scheme: light; --ink: #192c25; --green: #195a41; --line: #cfd9ce; --soft: #eaf2e7; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f6f5ed; color: var(--ink); font: 16px/1.75 "Microsoft YaHei", "PingFang SC", sans-serif; }
+    main { max-width: 960px; margin: 0 auto; padding: 22px clamp(16px, 5vw, 46px) 54px; }
+    nav { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-bottom: 17px; }
+    h1 { font-size: clamp(28px, 5vw, 43px); line-height: 1.25; margin: 15px 0 7px; }
+    h2, h3 { line-height: 1.45; }
+    section { background: #fffef9; padding: 16px clamp(14px, 3vw, 24px); border: 1px solid var(--line); border-radius: 12px; margin-top: 22px; }
+    section > h2:first-child { margin: 0 0 8px; }
+    a { color: var(--green); text-underline-offset: .18em; }
+    code { font-size: .95em; overflow-wrap: anywhere; }
+    pre { padding: 11px 13px; background: var(--soft); border-radius: 7px; overflow-x: auto; }
+    .scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 6px 9px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    thead { background: var(--soft); }
+    summary { cursor: pointer; font-weight: 650; }
+  </style>
+</head>
+<body>
+<main>
+  <nav aria-label="文档导航"><a href="../index.html">文档索引</a><a href="03-个股评分与MCTS系数搜索.html">六组评分公式</a><a href="#backprop">反向传播</a><a href="#compare">回测对照</a></nav>
+  <h1>因子权重怎么学？</h1>
+  <p>主方案用 IC 定组内参数，MCTS 选七个交易评分参数。反向传播方案学习未来上涨概率。两套方案用同一因子表、标签和时间划分。</p>
+
+  <section id="labels">
+    <h2>先把目标收益和成交时间对齐</h2>
+    <p>在交易日 t 收盘产生信号。用下一交易日的复权开盘价作为起点。5 日标签为 <code>O(t+6) ÷ O(t+1) − 1</code>，10 日标签为 <code>O(t+11) ÷ O(t+1) − 1</code>。实际收益大于 0 记为上涨，其余记为 0。每个标签须在所属的训练、校准或测试段内实现。</p>
+    <p>已有的 <code>601868_factor_ic_5-10d.txt</code> 是收盘到未来收盘的先导诊断。其结果和口径列在论文草稿第 3.5.3 节。<a href="../papers/第x章-(草稿)因子选取与定义.txt">查看论文草稿</a></p>
+  </section>
+
+  <section id="ic">
+    <h2>主方案 · 单股 IC 与七参数搜索</h2>
+    <p>对同一只股票，每个日期有一对数据，即因子原值与当日标签。分别对两列排名，并列取平均名次，再对配对的排名求相关。每个因子用整段有效样本得到一个 IC。分年 IC 可以用来查看方向是否稳定。<a href="https://www.itl.nist.gov/div898/software/dataplot/refman1/auxillar/rankcorr.htm">NIST 的 Spearman 定义</a></p>
+    <p>A 组按预设的 <code>0.03</code> 门槛筛选后，将带符号的 IC 按绝对值和归一化。D 组在两个 VR 状态分别估计日内信号的方向，量价组合使用全训练段方向。组内参数和风险阈值在校准前冻结。<a href="03-个股评分与MCTS系数搜索.html#direction-search">公式、阈值和搜索空间</a></p>
+    <details>
+      <summary>保留的股票池 RankIC 扩展</summary>
+      <p>横截面版本在同一天对多只股票排名，逐日计算 RankIC 再取均值，可用来给股票池构造共用权重。举例，四只股票的因子名次是 [1,2,3,4]，收益名次是 [1,3,2,4]，名次差的平方和是 2，Spearman 为 <code>1 − 6×2 ÷ [4×(4²−1)] = 0.80</code>。单股版沿时间排名，股票池版沿股票排名。<a href="https://arxiv.org/html/2406.18394v5">AlphaForge 的 IC 与因子组合</a></p>
+    </details>
+  </section>
+
+  <section id="backprop">
+    <h2>保留方案 · 逻辑回归与反向传播</h2>
+    <p>使用相同 20 个因子的历史位置分，例将 <code>Qₜ(x) ÷ 50</code> 作为输入 z。输出 p 是模型对未来上涨的概率估计。逻辑回归提供线性基线，单隐藏层用非线性激活学习因子之间的配合。</p>
+    <div class="scroll"><table>
+      <thead><tr><th scope="col">模型</th><th scope="col">从因子到概率</th><th scope="col">实验目的</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">逻辑回归</th><td><code>p = sigmoid(b + Σ βᵢzᵢ)</code></td><td>20 个系数加 1 个截距，提供可解释的线性对照。</td></tr>
+        <tr><th scope="row">单隐藏层网络</th><td><code>h = tanh(W₁z + b₁)，p = sigmoid(W₂h + b₂)</code></td><td>20 个输入、4–8 个隐藏单元，共 89–177 个参数。隐藏单元可以同时学习多个组的输入。</td></tr>
+        <tr><th scope="row">六组神经元</th><td><code>h_g = 2 × sigmoid(G_g + b_g) − 1，p = sigmoid(b₀ + Σ v_g h_g)</code></td><td>以 A–F 六个组分为输入。每组有自己的隐藏层偏置，比较压缩组分前后的预测效果。</td></tr>
+      </tbody>
+    </table></div>
+    <p>训练段用二分类交叉熵 <code>−[y log(p) + (1−y)log(1−p)]</code>，通过反向传播计算梯度，再由优化器更新权重和偏置。校准段设早停、概率阈值和可选概率校准。测试时报告方向命中率、概率误差和扣费后的交易结果。<a href="https://doi.org/10.1038/323533a0">Rumelhart 等的反向传播论文</a></p>
+  </section>
+
+  <section id="compare">
+    <h2>样本外对照怎么排</h2>
+    <ol>
+      <li><strong>训练段。</strong> 准备时点正确的 20 因子历史，求 IC、风险阈值，或拟合梯度模型。百分位按信号日前的历史顺序更新。</li>
+      <li><strong>校准段。</strong> MCTS 用扣费后年化夏普选择六个组系数和 bias。梯度方案主要用预测误差校准，并预先固定概率交易阈值。</li>
+      <li><strong>测试段。</strong> 使用时间上更晚的数据，在相同撮合、仓位和成本口径下比较等权、固定组系数、主模型、逐组移除、买入持有和两种梯度模型。单列覆盖率、净收益、夏普、回撤及换手。</li>
+    </ol>
+    <p>上线设计为离线准备历史因子和评分参数，日常按最新行情更新因子并增量更新历史百分位表。策略记录保存因子顺序、持有期、划分日期、阈值、权重、组系数、偏置、输入覆盖率及随机种子。<a href="01-数据获取与存储设计.html">历史数据与存储</a></p>
+  </section>
+</main>
+</body>
+</html>

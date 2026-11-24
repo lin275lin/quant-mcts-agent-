@@ -53,3 +53,12 @@ DEFAULT_WEIGHTS: dict[str, float] = {name: 1.0 / len(FACTOR_NAMES) for name in F
 # 最新因子快照的日线抓取范围，单位是自然日。
 # MOM120 加完整的 40 个历史因子值至少需要 161 根有效日线，评分历史不足时需补齐。
 LOOKBACK_CALENDAR_DAYS = 275
+
+
+#单因子权重核心计算公式
+#IC = Spearman(x,y)
+#其中x为因子值，y为未来收益率(五年约为1250个交易日的数据)
+#单股分数核心计算公式(以IC为权重)
+#score = ka*WA@A +kb* WB@B +kc*WC@C +kd * WD@D +ke * WE@E +kf*WF@F + bias*100
+#其中WA为A组因子权重，WA@A为A组因子权重与因子值的点积，其他组同理,单因子权重为各自五年数据计算出来的IC值，bias为偏置值，取值范围为[-1,1]，用于调节单股分数的高低，默认取0.0
+#蒙特卡洛树用于搜索最优的ka,kb,kc,kd,ke,kf,bias组合，搜索范围为[0,1]，搜索步长为待定

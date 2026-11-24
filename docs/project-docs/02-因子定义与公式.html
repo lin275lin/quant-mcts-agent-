@@ -66,15 +66,16 @@
 </head>
 <body>
 
+<p class="no-print"><a href="../index.html">文档索引</a> · <a href="03-个股评分与MCTS系数搜索.html">单股评分算例</a></p>
 <h1>因子定义与公式</h1>
-<p class="sub">基于多Agent与蒙特卡洛树的量化回测与决策系统　·　因子层规格说明书　·　v0.1　·　2026-11-23</p>
+<p class="sub">基于多Agent与蒙特卡洛树的量化回测与决策系统　·　因子层规格说明书　·　v0.4　·　2026-11-24</p>
 
 <table>
   <tr><th style="width:130px">文档编号</th><td>02-FACTOR-SPEC</td></tr>
   <tr><th>对应模块</th><td><code>core/factors/</code>　（因子计算与预处理）</td></tr>
   <tr><th>上游依赖</th><td><code>core/data/</code> 提供的 <code>bar_daily</code>、<code>valuation_daily</code>、<code>financial_report</code> 三张表</td></tr>
   <tr><th>下游使用</th><td>MCTS 权重搜索、组合评分、决策解释</td></tr>
-  <tr><th>状态</th><td>设计稿：公式已定，参数（窗口、缩尾阈值）待回测调优</td></tr>
+  <tr><th>状态</th><td>设计稿：原始因子按现有快照工具对齐，组内评分见个股评分页</td></tr>
 </table>
 
 <h2 id="toc">目录</h2>
@@ -83,11 +84,11 @@
   <p><a href="#s1">一、约定：符号、算子与口径</a></p>
   <p><a href="#s2">二、因子总表（20 个）</a></p>
   <p><a href="#s3">三、逐因子定义</a></p>
-  <p><a href="#s4">四、预处理管线</a></p>
-  <p><a href="#s5">五、因子分组与权重搜索空间</a></p>
+  <p><a href="#s4">四、送入评分前的数据口径</a></p>
+  <p><a href="#s5">五、从因子到组分</a></p>
   <p><a href="#s6">六、与参考论文的对照</a></p>
   <p><a href="#s7">七、参考文献</a></p>
-  <p><a href="#s8">八、附录：白话版</a></p>
+  <p><a href="#s8">八、个股算例</a></p>
   <p><a href="#s9">九、变更记录</a></p>
 </div>
 
@@ -126,11 +127,11 @@
   <dt>前复权</dt>
   <dd>以“今天”为基准，把历史价格按比例调整，让最新价和真实价对齐。看图常用，但有个毛病：每次新的分红发生后，整条历史序列都会被重算，也就是说今天看到的历史和昨天的不一样。</dd>
   <dt>后复权</dt>
-  <dd>以上市第一天为基准，往后调整。历史价格固定不动，新价格随分红累加变大。它的比值才是真实收益率，所以算收益必须用后复权。</dd>
+  <dd>向后调整除权除息后的价格。计算历史收益时，同一条收益序列使用一致的复权口径。</dd>
   <dt>复权因子</dt>
   <dd>一个乘数。后复权价 = 原始价 × 复权因子。因子只在除权除息日跳变，其余时间不变。</dd>
   <dt>一句话记住</dt>
-  <dd>看图用前复权，算账用后复权，存数据存“原始价 + 复权因子”。这样任何时候都能还原出当时看到的价格，也不会因为新分红把历史改掉。</dd>
+  <dd>现有快照工具使用 BaoStock 前复权行情。回测数据保存原始价格、复权信息和数据版本。</dd>
 </dl>
 <h3>三、统计与处理：公式里那些数学词</h3>
 <dl class="gloss">
@@ -214,14 +215,14 @@
   <dt>快照版本</dt>
   <dd>同一批数据的不同时间副本。写论文时要说清“用的是哪一版”，别人才能复现。</dd>
 </dl>
-<div class="tip"><b>如果你只想记三句话：</b>① <b>close 是收盘价，vwap 是当天成交均价</b>，两者之差能看出尾盘强弱；② <b>算收益用后复权，看图用前复权</b>，存数据存“原始价 + 复权因子”；③ <b>n 日指交易日</b>，不是自然日。</div>
+<div class="tip"><b>如果你只想记三句话：</b>① <b>close 是收盘价，vwap 是当天成交均价</b>，两者之差能看出尾盘强弱；② <b>项目行情快照使用前复权</b>，存数据存“原始价 + 复权因子”；③ <b>n 日指交易日</b>，不是自然日。</div>
 
 <h2 id="s1">一、约定：符号、算子与口径</h2>
 
 <h3>1.1 符号</h3>
 <table>
   <tr><th style="width:120px">符号</th><th style="width:170px">含义</th><th>说明</th></tr>
-  <tr><td><var>C</var><sub>t</sub></td><td>后复权收盘价</td><td><code>C = close × adj_factor</code>；用于收益率类因子</td></tr>
+  <tr><td><var>C</var><sub>t</sub></td><td>前复权收盘价</td><td>来自 BaoStock 同口径日线，用于收益率类因子</td></tr>
   <tr><td><var>P</var><sub>t</sub></td><td>原始收盘价</td><td>不复权；用于 <var>close</var> 与 <var>VWAP</var> 的比值类因子</td></tr>
   <tr><td><var>O</var><sub>t</sub>、<var>H</var><sub>t</sub>、<var>L</var><sub>t</sub></td><td>原始开、高、低价</td><td>不复权；比值类因子中复权因子会约掉，不影响结果</td></tr>
   <tr><td><var>V</var><sub>t</sub></td><td>成交量（股）</td><td>—</td></tr>
@@ -251,7 +252,7 @@
   <b>三条硬约定，实现时不得违反：</b>
   <ol style="margin:6px 0 0 18px; padding:0">
     <li><b>窗口按交易日计</b>，不是自然日。停牌日不参与窗口计算，但保留记录。</li>
-    <li><b>收益率、动量、波动一律用后复权价 <var>C</var></b>；比值类（振幅、日内动量）用原始价，两者在比值中会约掉。</li>
+    <li><b>收益率、动量和波动用前复权价 <var>C</var></b>；日内收益和振幅用同一口径的日内价格。</li>
     <li><b>财务数据按 <code>announce_date</code> 做 as-of join</b>，禁止直接用报告期，否则是未来函数。</li>
   </ol>
 </div>
@@ -272,7 +273,7 @@
 
 <!-- ============================================================ -->
 <h2 id="s2">二、因子总表（20 个）</h2>
-<p>前 15 个为价量类（MVP 先做），后 5 个为基本面类（第二阶段）。"先验方向"仅用于检验与解释，<b>不写死进回测</b>；实际符号由 IC 统计决定。</p>
+<p>前 15 个为价量和规模类，后 5 个为基本面类。"先验方向"记录研究假设。当前组内角色和权重见个股评分方案。</p>
 
 <table>
   <tr>
@@ -289,7 +290,7 @@
   <tr><td>F08</td><td>换手率均值</td><td><code>TURN20</code></td><td>流动性</td><td><var>TO</var></td><td>20</td><td>负向</td></tr>
   <tr><td>F09</td><td>Amihud 非流动性</td><td><code>AMIHUD20</code></td><td>流动性</td><td><var>C</var>、<var>A</var></td><td>20</td><td>正向</td></tr>
   <tr><td>F10</td><td>总市值对数</td><td><code>SIZE</code></td><td>流动性与规模</td><td><var>MC</var></td><td>1</td><td>负向</td></tr>
-  <tr><td>F11</td><td>日内动量</td><td><code>INTRA20</code></td><td>量价形态</td><td><var>P</var>、<var>A</var>、<var>V</var></td><td>20</td><td>正向</td></tr>
+  <tr><td>F11</td><td>平均日内收益</td><td><code>INTRA20</code></td><td>量价形态</td><td><var>C</var>、<var>O</var></td><td>20</td><td>分状态</td></tr>
   <tr><td>F12</td><td>量价相关性</td><td><code>CORR20</code></td><td>量价形态</td><td><var>C</var>、<var>V</var></td><td>20</td><td>负向</td></tr>
   <tr><td>F13</td><td>量比</td><td><code>VR</code></td><td>量价形态</td><td><var>V</var></td><td>5 / 20</td><td>正向</td></tr>
   <tr><td>F14</td><td>相对强弱指标</td><td><code>RSI14</code></td><td>技术</td><td><var>C</var></td><td>14</td><td>反向</td></tr>
@@ -312,7 +313,7 @@
   <div class="formula"><var>MOM</var><sub>20</sub> = <span class="frac"><span class="num"><var>C</var><sub>t</sub></span><span class="den"><var>C</var><sub>t−20</sub></span></span> − 1</div>
   <p>过去 20 个交易日（约一个月）的累计收益，衡量短期趋势强度。</p>
   <ul class="meta">
-    <li><b>依赖</b>后复权 close</li><li><b>先验方向</b>正向</li>
+    <li><b>依赖</b>前复权 close</li><li><b>先验方向</b>正向</li>
     <li><b>缺失</b>不足 20 个有效交易日则 NULL</li><li><b>备注</b>与 F02、F03 高度相关，注意共线性</li>
   </ul>
 </article>
@@ -322,7 +323,7 @@
   <p class="src"><b>公式来源：</b>同 F01，窗口取季度级别；[1][2] 的算子集中 <code>Pct</code> 与 <code>Delay</code> 组合即此类形态</p>
   <div class="formula"><var>MOM</var><sub>60</sub> = <span class="frac"><span class="num"><var>C</var><sub>t</sub></span><span class="den"><var>C</var><sub>t−60</sub></span></span> − 1</div>
   <p>季度级别趋势，对风格切换的敏感度低于 MOM20。</p>
-  <ul class="meta"><li><b>依赖</b>后复权 close</li><li><b>先验方向</b>正向</li><li><b>缺失</b>不足 60 日则 NULL</li></ul>
+  <ul class="meta"><li><b>依赖</b>前复权 close</li><li><b>先验方向</b>正向</li><li><b>缺失</b>不足 60 日则 NULL</li></ul>
 </article>
 
 <article class="factor">
@@ -330,7 +331,7 @@
   <p class="src"><b>公式来源：</b>同 F01，窗口中长期化；[4] 在精炼 Alpha101 基线时使用过同类长窗口动量</p>
   <div class="formula"><var>MOM</var><sub>120</sub> = <span class="frac"><span class="num"><var>C</var><sub>t</sub></span><span class="den"><var>C</var><sub>t−120</sub></span></span> − 1</div>
   <p>半年期趋势，接近中期动量因子；在 A 股常与反转效应交织，需看 IC 符号。</p>
-  <ul class="meta"><li><b>依赖</b>后复权 close</li><li><b>先验方向</b>正向（A 股可能反号）</li><li><b>缺失</b>不足 120 日则 NULL</li></ul>
+  <ul class="meta"><li><b>依赖</b>前复权 close</li><li><b>先验方向</b>正向（A 股可能反号）</li><li><b>缺失</b>不足 120 日则 NULL</li></ul>
 </article>
 
 <article class="factor">
@@ -338,7 +339,7 @@
   <p class="src"><b>公式来源：</b>短期反转形态见 [6] 的反转类公式，[4] 将其作为精炼基线之一</p>
   <div class="formula"><var>REV</var><sub>5</sub> = −(<span class="frac"><span class="num"><var>C</var><sub>t</sub></span><span class="den"><var>C</var><sub>t−5</sub></span></span> − 1)</div>
   <p>取负号，使"上周跌得多"的股票因子值更大，与"短期反转"先验方向一致。</p>
-  <ul class="meta"><li><b>依赖</b>后复权 close</li><li><b>先验方向</b>正向（已含负号）</li><li><b>备注</b>与 F01 相关性通常为负</li></ul>
+  <ul class="meta"><li><b>依赖</b>前复权 close</li><li><b>先验方向</b>正向（已含负号）</li><li><b>备注</b>与 F01 相关性通常为负</li></ul>
 </article>
 
 <h3>3.2 波动<span class="tag">F05–F07</span></h3>
@@ -346,25 +347,25 @@
 <article class="factor">
   <h3>F05　20 日波动率<small>VOL20</small></h3>
   <p class="src"><b>公式来源：</b>波动类形态在 [5] 挖掘出的公式中高频出现（如 <code>Std(Pct(vwap,20),25)</code>），[2] 亦以 <code>Std</code> 算子构造</p>
-  <div class="formula"><var>VOL</var><sub>20</sub> = Std(<var>r</var><sub>t</sub>, 20)、　<var>r</var><sub>t</sub> = <span class="frac"><span class="num"><var>C</var><sub>t</sub></span><span class="den"><var>C</var><sub>t−1</sub></span></span> − 1</div>
-  <p>日收益率的 20 日标准差，"低波动异象"的经典度量。</p>
-  <ul class="meta"><li><b>依赖</b>后复权 close</li><li><b>先验方向</b>负向（低波动占优）</li><li><b>备注</b>建议年化：×√252，仅用于展示，不用于因子值</li></ul>
+  <div class="formula"><var>VOL</var><sub>20</sub> = √252 × Std(<var>r</var><sub>t</sub>, 20)、　<var>r</var><sub>t</sub> = <span class="frac"><span class="num"><var>C</var><sub>t</sub></span><span class="den"><var>C</var><sub>t−1</sub></span></span> − 1</div>
+  <p>日收益率 20 日窗口的年化样本标准差。</p>
+  <ul class="meta"><li><b>依赖</b>前复权 close</li><li><b>先验方向</b>负向（低波动占优）</li><li><b>备注</b>按 252 个交易日年化</li></ul>
 </article>
 
 <article class="factor">
   <h3>F06　60 日波动率<small>VOL60</small></h3>
   <p class="src"><b>公式来源：</b>同 F05，窗口拉长以降低单日极端值影响；算子定义同 [5]</p>
-  <div class="formula"><var>VOL</var><sub>60</sub> = Std(<var>r</var><sub>t</sub>, 60)</div>
+  <div class="formula"><var>VOL</var><sub>60</sub> = √252 × Std(<var>r</var><sub>t</sub>, 60)</div>
   <p>季度级别波动，比 VOL20 稳定，受单日极端行情影响小。</p>
-  <ul class="meta"><li><b>依赖</b>后复权 close</li><li><b>先验方向</b>负向</li></ul>
+  <ul class="meta"><li><b>依赖</b>前复权 close</li><li><b>先验方向</b>负向</li></ul>
 </article>
 
 <article class="factor">
   <h3>F07　下行波动率<small>DVOL20</small></h3>
-  <p class="src"><b>公式来源：</b>通用定义（半方差 / 下行标准差），非参考论文特有，故无文献标注</p>
-  <div class="formula"><var>DVOL</var><sub>20</sub> = √<span style="border-top:1px solid; padding:0 3px"> <span class="frac"><span class="num">1</span><span class="den">20</span></span> Σ<sub>i=0</sub><sup>19</sup> min(<var>r</var><sub>t−i</sub>, 0)<sup>2</sup> </span></div>
-  <p>只统计下跌日的波动，衡量"亏钱的风险"，与对称的 VOL20 互补。</p>
-  <ul class="meta"><li><b>依赖</b>后复权 close</li><li><b>先验方向</b>负向</li><li><b>备注</b>全为上涨日时取 0，不取 NULL</li></ul>
+  <p class="src"><b>依据：</b>下行风险单独计量的思路见 <a href="https://doi.org/10.3905/joi.3.3.59">Sortino 与 Price</a>。</p>
+  <div class="formula"><var>DVOL</var><sub>20</sub> = √252 × Std(min(<var>r</var>, 0), 20)</div>
+  <p>先把非负收益置零，再求样本标准差并年化，作为项目的下行波动口径。</p>
+  <ul class="meta"><li><b>依赖</b>前复权 close</li><li><b>备注</b>有效窗口内没有下跌时取 0</li></ul>
 </article>
 
 <h3>3.3 流动性与规模<span class="tag">F08–F10</span></h3>
@@ -382,36 +383,32 @@
   <p class="src"><b>公式来源：</b>非流动性指标原始定义见 [7]</p>
   <div class="formula"><var>AMIHUD</var><sub>20</sub> = <span class="frac"><span class="num">1</span><span class="den">20</span></span> Σ<sub>i=0</sub><sup>19</sup> <span class="frac"><span class="num">|<var>r</var><sub>t−i</sub>|</span><span class="den"><var>A</var><sub>t−i</sub></span></span> × 10<sup>8</sup></div>
   <p>单位成交额推动的价格变动幅度：值越大越不流动，隐含流动性溢价。</p>
-  <ul class="meta"><li><b>依赖</b>后复权 close、成交额</li><li><b>先验方向</b>正向</li><li><b>备注</b>×10⁸ 只为数值量级好看，不改变排序</li></ul>
+  <ul class="meta"><li><b>依赖</b>前复权 close、成交额</li><li><b>先验方向</b>正向</li><li><b>备注</b>×10⁸ 只为数值量级好看，不改变排序</li></ul>
 </article>
 
 <article class="factor">
   <h3>F10　总市值对数<small>SIZE</small></h3>
   <p class="src"><b>公式来源：</b>规模因子原始定义见 [8]；三因子模型中的市值维度见 [9]</p>
   <div class="formula"><var>SIZE</var> = ln(<var>MC</var><sub>t</sub>)</div>
-  <p>规模因子；小市值溢价在 A 股长期存在，先验为负向（值越小越好）。</p>
-  <ul class="meta"><li><b>依赖</b>circ_mv</li><li><b>先验方向</b>负向</li><li><b>备注</b>同时用于市值中性化</li></ul>
+  <p>公司总市值的自然对数。当前 C 组将总市值用作交易可行性门槛。</p>
+  <ul class="meta"><li><b>依赖</b>当日总市值，单位元</li><li><b>缺失</b>没有当日历史总市值时记缺失</li></ul>
 </article>
 
 <h3>3.4 量价形态<span class="tag">F11–F13</span></h3>
 
 <article class="factor">
-  <h3>F11　日内动量<small>INTRA20</small></h3>
-  <p class="src"><b>公式来源：</b>「<code>close − vwap</code>」是 [5] 中出现频率最高的形态，作者解释为尾盘买卖压力；[2] 中有 <code>Corr(volume, vwap, 10)</code> 类同族公式</p>
-  <div class="formula"><var>INTRA</var><sub>20</sub> = <span class="frac"><span class="num">1</span><span class="den">20</span></span> Σ<sub>i=0</sub><sup>19</sup> <span class="frac"><span class="num"><var>P</var><sub>t−i</sub> − <var>VWAP</var><sub>t−i</sub></span><span class="den"><var>VWAP</var><sub>t−i</sub></span></span></div>
-  <p>收盘价相对当日成交均价的偏离：>0 表示尾盘走强、买盘承接，是参考论文中出现频率最高的形态之一（<code>close − vwap</code>）。</p>
-  <ul class="meta">
-    <li><b>依赖</b>原始收盘价、成交额、成交量</li><li><b>先验方向</b>正向</li>
-    <li><b>口径</b>用原始价，比值中复权因子约掉</li><li><b>缺失</b><var>A</var>=0 或 <var>V</var>=0 的日记 NULL</li>
-  </ul>
+  <h3>F11　平均日内收益<small>INTRA20</small></h3>
+  <p class="src">日内收益和隔夜收益的分解可参考 <a href="https://doi.org/10.1016/j.jfineco.2019.03.011">Lou、Polk 与 Skouras</a>。</p>
+  <div class="formula"><var>INTRA</var><sub>20</sub> = Ma((<var>C</var> − <var>O</var>) ÷ <var>O</var>, 20)</div>
+  <p>把每天从开盘到收盘的涨跌幅取 20 日平均。D 组按 VR 状态选相应的日内信号方向。</p>
 </article>
 
 <article class="factor">
   <h3>F12　量价相关性<small>CORR20</small></h3>
   <p class="src"><b>公式来源：</b>量价相关形态见 [5] 的 <code>Corr(close, volume, 50)</code>，[4] 的算子集亦含 <code>Corr</code></p>
-  <div class="formula"><var>CORR</var><sub>20</sub> = Corr(<var>C</var><sub>t</sub>, ln(<var>V</var><sub>t</sub>), 20)</div>
-  <p>价格与成交量的同步程度。放量上涨为正相关；A 股常见的"量价背离"对应负相关，先验取负向。</p>
-  <ul class="meta"><li><b>依赖</b>后复权 close、成交量</li><li><b>先验方向</b>负向</li><li><b>备注</b>成交量取对数，减弱量级差异</li></ul>
+  <div class="formula"><var>CORR</var><sub>20</sub> = Corr(<var>C</var><sub>t</sub>, <var>V</var><sub>t</sub>, 20)</div>
+  <p>收盘价与成交量原值的 20 日 Pearson 相关。D 组将其与高低价差偏度组合。</p>
+  <ul class="meta"><li><b>依赖</b>前复权 close、成交量</li><li><b>备注</b>成交量使用原值</li></ul>
 </article>
 
 <article class="factor">
@@ -427,9 +424,9 @@
 <article class="factor">
   <h3>F14　相对强弱指标<small>RSI14</small></h3>
   <p class="src"><b>公式来源：</b>RSI 原始定义见 [10]</p>
-  <div class="formula"><var>RS</var> = <span class="frac"><span class="num">Ma(max(<var>r</var><sub>t</sub>,0), 14)</span><span class="den">Ma(|min(<var>r</var><sub>t</sub>,0)|, 14)</span></span>　，　<var>RSI</var> = 100 − <span class="frac"><span class="num">100</span><span class="den">1 + <var>RS</var></span></span></div>
+  <div class="formula"><var>RS</var> = <span class="frac"><span class="num">Wilder(max(Δ<var>C</var>,0), 14)</span><span class="den">Wilder(|min(Δ<var>C</var>,0)|, 14)</span></span>　，　<var>RSI</var> = 100 − <span class="frac"><span class="num">100</span><span class="den">1 + <var>RS</var></span></span></div>
   <p>取值 0–100。传统用法是超买（>70）看跌、超卖（<30）看涨，故先验方向取反向。</p>
-  <ul class="meta"><li><b>依赖</b>后复权 close</li><li><b>先验方向</b>反向</li><li><b>缺失</b>14 日内无下跌日时 RS 为无穷，RSI 记 100</li></ul>
+  <ul class="meta"><li><b>依赖</b>前复权 close</li><li><b>先验方向</b>反向</li><li><b>缺失</b>现有实现中，平滑后的平均跌幅为 0 时记缺失</li></ul>
 </article>
 
 <article class="factor">
@@ -437,20 +434,20 @@
   <p class="src"><b>公式来源：</b>通用定义（日内振幅），非参考论文特有，故无文献标注</p>
   <div class="formula"><var>AMP</var><sub>20</sub> = <span class="frac"><span class="num">1</span><span class="den">20</span></span> Σ<sub>i=0</sub><sup>19</sup> <span class="frac"><span class="num"><var>H</var><sub>t−i</sub> − <var>L</var><sub>t−i</sub></span><span class="den"><var>O</var><sub>t−i</sub></span></span></div>
   <p>日内高低幅度的相对值，刻画"日内博弈激烈程度"；与波动率不同，它不受隔夜跳空影响。</p>
-  <ul class="meta"><li><b>依赖</b>原始 high、low、open</li><li><b>先验方向</b>负向</li><li><b>口径</b>用原始价，比值中复权因子约掉</li></ul>
+  <ul class="meta"><li><b>依赖</b>同口径 high、low、open</li><li><b>先验方向</b>负向</li><li><b>口径</b>同日价格使用同一复权口径</li></ul>
 </article>
 
 <h3>3.6 基本面<span class="tag">F16–F20</span></h3>
 <div class="note">
-  <b>口径提醒：</b>基本面因子一律按 <code>announce_date</code> 做 as-of join。当前 <code>announce_date</code> 是"报告期 + 90 天"的近似值，论文中需注明；若后续接入带真实公告日的数据源，只改数据层，不改本节公式。
+  <b>口径提醒：</b>ROE 和 REVG 在评分时使用真实公告可用时间对齐。历史公告或历史因子值缺失时保留缺失标记。
 </div>
 
 <article class="factor">
   <h3>F16　盈利收益率<small>EP</small></h3>
   <p class="src"><b>公式来源：</b>价值因子（E/P）原始定义见 [9]</p>
   <div class="formula"><var>EP</var> = <span class="frac"><span class="num">1</span><span class="den"><var>PE</var><sub>TTM</sub></span></span></div>
-  <p>市盈率的倒数，避免 PE 在 0 附近爆炸，也便于与其它因子取同一方向（越大越便宜）。</p>
-  <ul class="meta"><li><b>依赖</b>pe_ttm</li><li><b>先验方向</b>正向（估值越低越好）</li><li><b>缺失</b>PE ≤ 0 或 NULL 时记 NULL</li></ul>
+  <p>市盈率的倒数。负市盈率保留负号，对应负盈利收益率。</p>
+  <ul class="meta"><li><b>依赖</b>pe_ttm</li><li><b>先验方向</b>正向（估值越低越好）</li><li><b>缺失</b>PE 为 0、缺失或非有限值时记缺失</li></ul>
 </article>
 
 <article class="factor">
@@ -458,7 +455,7 @@
   <p class="src"><b>公式来源：</b>价值因子（B/P）原始定义见 [9]</p>
   <div class="formula"><var>BP</var> = <span class="frac"><span class="num">1</span><span class="den"><var>PB</var></span></span></div>
   <p>市净率的倒数，价值因子的标准形式。</p>
-  <ul class="meta"><li><b>依赖</b>pb</li><li><b>先验方向</b>正向</li><li><b>缺失</b>PB ≤ 0 时 NULL</li></ul>
+  <ul class="meta"><li><b>依赖</b>pb</li><li><b>先验方向</b>正向</li><li><b>缺失</b>PB 为 0、缺失或非有限值时记缺失</li></ul>
 </article>
 
 <article class="factor">
@@ -466,15 +463,14 @@
   <p class="src"><b>公式来源：</b>价值因子（S/P）属 [9] 价值维度同族，取倒数以统一方向</p>
   <div class="formula"><var>SP</var> = <span class="frac"><span class="num">1</span><span class="den"><var>PS</var><sub>TTM</sub></span></span></div>
   <p>市销率的倒数，对盈利为负但有收入的公司仍可用，补 EP 的缺口。</p>
-  <ul class="meta"><li><b>依赖</b>ps_ttm</li><li><b>先验方向</b>正向</li><li><b>缺失</b>PS ≤ 0 时 NULL</li></ul>
+  <ul class="meta"><li><b>依赖</b>ps_ttm</li><li><b>先验方向</b>正向</li><li><b>缺失</b>PS 为 0、缺失或非有限值时记缺失</li></ul>
 </article>
 
 <article class="factor">
   <h3>F19　净资产收益率<small>ROE</small></h3>
   <p class="src"><b>公式来源：</b>盈利质量因子的原始依据见 [12]</p>
-  <div class="formula"><var>ROE</var> = <span class="frac"><span class="num"><var>NP</var></span><span class="den"><var>E</var></span></span></div>
-  <p>净利润 / 净资产，衡量资本使用效率，是质量因子的核心。</p>
-  <ul class="meta"><li><b>依赖</b>净利润、净资产（<code>financial_report</code>）</li><li><b>先验方向</b>正向</li><li><b>缺失</b>净资产 ≤ 0 时 NULL</li></ul>
+  <div class="formula"><var>ROE</var> = 数据源加权净资产收益率（百分数转小数）</div>
+  <p>衡量资本使用效率，来源字段与公告可用时间一起保留。</p>
 </article>
 
 <article class="factor">
@@ -486,47 +482,14 @@
 </article>
 
 <!-- ============================================================ -->
-<h2 id="s4">四、预处理管线</h2>
-<p>所有因子按<b>固定顺序</b>处理，顺序不可调换（顺序变了，结果就变了，必须写进配置）。</p>
+<h2 id="s4">四、送入评分前的数据口径</h2>
+<p>原值表保留日期、缺失原因及源字段。动量权重的 IC 用因子原值估计；需要统一尺度的评分项用评分日之前的历史百分位。波动和流动性预算继续使用原始单位。<a href="03-个股评分与MCTS系数搜索.html#percentile-lookup">查看百分位算例</a></p>
 
-<table>
-  <tr><th style="width:56px">步骤</th><th style="width:150px">操作</th><th>规则</th></tr>
-  <tr><td>1</td><td>缺失剔除</td><td>因子值为 NULL 的股票不参与当日横截面排序</td></tr>
-  <tr><td>2</td><td>去极值（MAD）</td><td>中位数 ± 5 × 1.4826 × MAD，超出者截断到边界</td></tr>
-  <tr><td>3</td><td>标准化</td><td>横截面 Z-score；<code>Std = 0</code> 时全部置 0</td></tr>
-  <tr><td>4</td><td>中性化</td><td>对行业哑变量与 ln(市值) 回归取残差：<span class="frac"><span class="num"><var>f</var> − <var>f̂</var></span><span class="den">σ<sub><var>f</var>−<var>f̂</var></sub></span></span></td></tr>
-  <tr><td>5</td><td>再标准化</td><td>中性化后残差再 Z-score 一次</td></tr>
-</table>
+<h2 id="s5">五、从因子到组分</h2>
+<p>A–F 组分别承担趋势、风险、交易条件、量价、技术和基本面角色。完整组内公式、总分和七参数搜索集中在<a href="03-个股评分与MCTS系数搜索.html">个股评分页</a>。IC 训练和反向传播见<a href="05-因子权重计算方案.html">权重实验页</a>。</p>
 
-<div class="tip">
-  <b>为什么顺序不能换：</b>先去极值再标准化，极端值会被压住；先标准化再去极值，极端值已经把均值方差带偏了。行业中性化必须在标准化之后、再标准化之前，否则回归残差的量级不可比。
-</div>
-
-<!-- ============================================================ -->
-<h2 id="s5">五、因子分组与权重搜索空间</h2>
-<p>20 个因子直接搜权重，四档取值共有 4²⁰，约 1.1 万亿种组合。项目用<b>组内等权、组间加权</b>把搜索维度压到最多 6。</p>
-
-<table>
-  <tr><th style="width:120px">组</th><th style="width:190px">成员</th><th>组内合成</th><th style="width:96px">组内因子数</th></tr>
-  <tr><td>A 动量反转</td><td>MOM20、MOM60、MOM120、REV5</td><td>等权平均</td><td>4</td></tr>
-  <tr><td>B 波动</td><td>VOL20、VOL60、DVOL20</td><td>等权平均</td><td>3</td></tr>
-  <tr><td>C 流动性与规模</td><td>TURN20、AMIHUD20、SIZE</td><td>等权平均</td><td>3</td></tr>
-  <tr><td>D 量价形态</td><td>INTRA20、CORR20、VR</td><td>等权平均</td><td>3</td></tr>
-  <tr><td>E 技术</td><td>RSI14、AMP20</td><td>等权平均</td><td>2</td></tr>
-  <tr><td>F 基本面</td><td>EP、BP、SP、ROE、REVG</td><td>等权平均</td><td>5</td></tr>
-</table>
-
-<p>权重搜索：</p>
-<ul>
-  <li>A–F 六组全纳入评分。待搜组的档位为 {0.25, 0.5, 0.75, 1.0}，六组都待搜时有 4⁶ = 4096 个档位组合，可以用穷举对照 MCTS。</li>
-  <li>MCTS 也可以只搜索指定组。其余组继续使用固定系数，所有组的有效权重合计为 1。</li>
-  <li>综合得分：<span class="mono">score = Σ w<sub>g</sub> · z<sub>g</sub></span>，其中 z<sub>g</sub> 为组内等权平均后再次标准化的值；</li>
-  <li>组权重乘组分后相加，得到个股综合信号。买卖阈值和仓位规则详见<a href="03-个股评分与MCTS系数搜索.html">个股评分方案</a>。</li>
-</ul>
-
-<!-- ============================================================ -->
 <h2 id="s6">六、与参考论文的对照</h2>
-<p>五篇参考论文都不"选因子"，而是用价量字段 + 算子搜索公式。本表的因子是本项目人工构造的等价物，形态上与之对应。</p>
+<p>五篇参考论文都不"选因子"，而是用价量字段 + 算子搜索公式。本表比较相关算子和研究的经济含义。原始因子的实际定义以上文为准。</p>
 
 <table>
   <tr><th style="width:190px">本项目因子</th><th style="width:300px">论文中的对应形态</th><th>出处</th></tr>
@@ -534,7 +497,7 @@
   <tr><td>F04 反转</td><td>Alpha101 中的 <code>−Pct(close, 5)</code> 类</td><td>AlphaCFG 用来精炼的基线</td></tr>
   <tr><td>F05–F07 波动</td><td><code>Std(Pct(close,1), n)</code>、<code>Std(close−vwap, n)</code></td><td>AlphaJungle 挖出的高位公式</td></tr>
   <tr><td>F09 Amihud</td><td>量价比值族：<code>volume/vwap</code>、<code>Sum(volume,40)/volume</code></td><td>AlphaJungle、AlphaForge</td></tr>
-  <tr><td>F11 日内动量</td><td><code>close − vwap</code>、<code>Zscore(Ma(close−vwap,20),30)</code></td><td>AlphaJungle 反复出现，被解释为"尾盘买卖压力"</td></tr>
+<tr><td>F11 平均日内收益</td><td>开盘至收盘收益</td><td>日内收益分解研究</td></tr>
   <tr><td>F12 量价相关</td><td><code>Corr(close, volume, 50)</code></td><td>AlphaJungle、AlphaCFG</td></tr>
   <tr><td>F13 量比</td><td><code>Ma(volume,5)/Ma(volume,20)</code> 类</td><td>Alpha101 / GTJA191 常用族</td></tr>
   <tr><td>F16–F18 估值</td><td>论文中<b>没有</b>（全部只用价量）</td><td>本项目扩展，作为消融实验</td></tr>
@@ -563,76 +526,8 @@
 </table>
 <p class="small">说明：[1]–[5] 为本项目开题报告“国内外研究现状”中综述的因子挖掘工作；[6]–[12] 为因子的原始出处，按其在因子定义中的先后顺序编号。</p>
 
-<h2 id="s8">八、附录：白话版——每个因子为什么选</h2>
-<p>这一节不写公式，只回答两个问题：<b>它是什么意思</b>、<b>为什么值得放进来</b>。答辩时被问到“这个因子为什么选”，可以直接用这里的说法。</p>
-<table>
-  <tr><th style="width:110px">组</th><th style="width:180px">在问什么</th><th>大白话</th></tr>
-  <tr><td>A 动量反转</td><td>它最近是涨是跌</td><td>追涨还是抄底</td></tr>
-  <tr><td>B 波动</td><td>它晃得厉害吗</td><td>坐这趟车颠不颠</td></tr>
-  <tr><td>C 流动性与规模</td><td>好不好买、公司多大</td><td>进出方不方便、是小盘还是大盘</td></tr>
-  <tr><td>D 量价形态</td><td>资金是怎么动的</td><td>是真心买还是虚晃一枪</td></tr>
-  <tr><td>E 技术</td><td>短期情绪过热还是过冷</td><td>是不是涨太急、跌太狠</td></tr>
-  <tr><td>F 基本面</td><td>公司贵不贵、赚不赚钱</td><td>值不值这个价</td></tr>
-</table>
-<h3>A 组：动量与反转——它最近是涨是跌</h3>
-<dl class="plain">
-  <dt>F01　20 日动量</dt>
-  <dd>过去一个月涨了多少。<br><em>为什么选：</em>人天生追涨，最近一个月走强的股票短期内往往还有惯性，这是全球市场都验证过的老因子，也是绝大多数量化模型的基线。<br><em>要小心：</em>A 股一个月内的“惯性”经常变成“反转”，单用会亏，必须和 F04 一起看。</dd>
-  <dt>F02　60 日动量</dt>
-  <dd>过去三个月涨幅。<br><em>为什么选：</em>一个月的信号太吵，押三个月的更能代表趋势，不会被单日暴涨暴跌带偏。<br><em>要小心：</em>和 F01 高度重叠，两个都别给太大权重。</dd>
-  <dt>F03　120 日动量</dt>
-  <dd>半年涨幅。<br><em>为什么选：</em>覆盖一个完整的中期周期。A 股在半年维度上常常表现为反转，方向可能是反的——把它放进来，就是要让数据告诉我们到底是追涨还是抄底。<br><em>要小心：</em>窗口长、数据少，次新股会大面积缺值。</dd>
-  <dt>F04　5 日反转</dt>
-  <dd>上周跌得多的，这周容易反弹。<br><em>为什么选：</em>散户“跌了想抄底、涨了想落袋”，造成短期超跌反弹。公式前面加负号，是为了让“跌得多”的分数更高，与其它因子方向统一。<br><em>要小心：</em>遇到连续跌停或退市风险股，反弹逻辑失效。</dd>
-</dl>
-<h3>B 组：波动——坐这趟车颠不颠</h3>
-<dl class="plain">
-  <dt>F05　20 日波动率</dt>
-  <dd>过去一个月每天涨跌的平均幅度。<br><em>为什么选：</em>“低波动异象”：同样赚 10%，每天晃 1% 的股票比每天晃 6% 的更划算，资金愿意给溢价。波动率同时也是风险最直接的度量。<br><em>要小心：</em>牛市里高波动股涨得更凶，它单独用会拖后腿。</dd>
-  <dt>F06　60 日波动率</dt>
-  <dd>季度波动。<br><em>为什么选：</em>一个月波动容易被某天暴跌带偏，三个月更稳，代表这只股票“平时的脾气”。<br><em>要小心：</em>反应慢，风格突变时跟不上。</dd>
-  <dt>F07　下行波动率</dt>
-  <dd>只统计下跌那几天的波动。<br><em>为什么选：</em>人对亏钱的痛感远大于赚钱，一只股票“跌起来凶”比“上下都凶”更能预测你之后会亏多少。<br><em>要小心：</em>全涨的月份会得到 0，不是缺数据。</dd>
-</dl>
-<h3>C 组：流动性与规模——好不好买、公司多大</h3>
-<dl class="plain">
-  <dt>F08　换手率均值</dt>
-  <dd>平均每天有多少比例的流通股在换手。<br><em>为什么选：</em>衡量“热闹程度”。太热闹通常意味着投机资金扎堆，后面容易一地鸡毛，所以方向设为负：越热闹越谨慎。<br><em>要小心：</em>小盘股、次新股换手天然高，不控制市值会误伤。</dd>
-  <dt>F09　Amihud 非流动性</dt>
-  <dd>花一块钱能把价格推多高。<br><em>为什么选：</em>衡量买卖的摩擦成本。想买一千万，一买价格就飞，说明这股票不好交易，投资者会要求更高回报补偿，这就是“流动性溢价”。机构建仓最怕这个。<br><em>要小心：</em>冷门股容易出极端值，必须去极值。</dd>
-  <dt>F10　总市值对数</dt>
-  <dd>公司多大。<br><em>为什么选：</em>A 股长期有“小盘股溢价”。但更重要的是：它必须作为控制变量放进模型，否则所有因子最后都变成“选小盘股”，看起来有效其实是错觉。<br><em>要小心：</em>市值数据缺失时不能用 0 代替。</dd>
-</dl>
-<h3>D 组：量价形态——资金是怎么动的</h3>
-<dl class="plain">
-  <dt>F11　日内动量</dt>
-  <dd>收盘价比当天平均成交价高多少。<br><em>为什么选：</em>收盘明显高于均价，说明尾盘有人愿意用高价接货，是“真买盘”，第二天往往还有惯性。这是参考论文里出现频率最高的形态，被解释为尾盘的买卖压力。<br><em>要小心：</em>尾盘拉抬、砸盘这类操纵会污染数据，靠去极值压住。</dd>
-  <dt>F12　量价相关</dt>
-  <dd>价格涨的时候成交量跟不跟。<br><em>为什么选：</em>量是价的燃料。放量上涨是健康的，缩量上涨或放量下跌是“背离”，往往预示要转向。<br><em>要小心：</em>单边行情里相关性会被压到接近 ±1，区分度下降。</dd>
-  <dt>F13　量比</dt>
-  <dd>最近 5 天的成交量是过去 20 天均量的几倍。<br><em>为什么选：</em>突然放量，说明有资金或消息进场，短期往往还有惯性。<br><em>要小心：</em>放量也可能是出货，必须结合当天价格是涨是跌。</dd>
-</dl>
-<h3>E 组：技术指标——短期情绪过热还是过冷</h3>
-<dl class="plain">
-  <dt>F14　RSI</dt>
-  <dd>过去 14 天“涨的力量”和“跌的力量”的比值，0 到 100。<br><em>为什么选：</em>最经典的情绪指标：超过 70 叫超买（涨太急），低于 30 叫超卖（跌太狠），传统用法是反着做。<br><em>要小心：</em>A 股里 RSI 的有效性争议大，所以方向先标“反向”，交给数据决定，而不是拍脑袋。</dd>
-  <dt>F15　振幅均值</dt>
-  <dd>一天之内最高价到最低价晃多大。<br><em>为什么选：</em>和波动率不同：波动率包含隔夜跳空，振幅只算盘中。盘中晃得凶说明多空分歧大，分歧大的股票后续收益通常更差。<br><em>要小心：</em>一字板行情里振幅接近 0，会失真。</dd>
-</dl>
-<h3>F 组：基本面——公司贵不贵、赚不赚钱</h3>
-<dl class="plain">
-  <dt>F16　EP 盈利收益率</dt>
-  <dd>市盈率的倒数，越大越便宜。<br><em>为什么选：</em>为什么用倒数：亏损股的 PE 是负数甚至趋近 0，直接排序会乱套；取倒数后“便宜”变成“数值大”，与其它因子方向一致。<br><em>要小心：</em>周期股在盈利高点时 EP 很漂亮，其实是陷阱。</dd>
-  <dt>F17　BP 账面市值比</dt>
-  <dd>市净率的倒数。<br><em>为什么选：</em>价值投资的核心指标：买得比公司净资产还便宜，就是典型的价值股。<br><em>要小心：</em>轻资产公司（软件、服务）账面价值低，BP 天然难看。</dd>
-  <dt>F18　SP 营收市值比</dt>
-  <dd>市销率的倒数。<br><em>为什么选：</em>有些公司亏损（PE 用不了）但有实打实的收入，这个因子还能用，专门补 EP 的漏洞。<br><em>要小心：</em>低毛利行业营收虚高，会误判为便宜。</dd>
-  <dt>F19　ROE</dt>
-  <dd>净利润除以净资产，赚钱效率。<br><em>为什么选：</em>“好公司长期跑赢”：同样的价格，一家每年赚 20%、一家赚 5%，长期差距巨大，这是质量因子的核心。<br><em>要小心：</em>高负债会把 ROE 抬高，要配合资产负债率看。</dd>
-  <dt>F20　营收同比增速</dt>
-  <dd>收入比去年同期增长多少。<br><em>为什么选：</em>成长性。A 股对“成长故事”的反应往往比“便宜”更剧烈，所以单独放一个。<br><em>要小心：</em>并表、一次性收入会虚增增速，需看扣非。</dd>
-</dl>
-<div class="tip"><b>一句话记住每组的风险：</b>动量容易和反转打架；波动在牛市拖后腿；流动性不控市值会集体变成“选小盘股”；量价形态最怕尾盘操纵；技术指标在 A 股说服力有限；基本面最怕公告日对齐错，那是未来函数。</div>
+<h2 id="s8">八、个股算例</h2>
+<p>要看每个原始值怎样参与组分，可以跟着 <a href="03-个股评分与MCTS系数搜索.html#walkthrough">个股评分动画</a> 走一遍。</p>
 
 <h2 id="s9">九、变更记录</h2>
 <table>
@@ -640,6 +535,7 @@
   <tr><td>v0.1</td><td>2026-11-23</td><td>初稿：20 个因子定义、预处理管线、6 组降维、与论文对照</td></tr>
   <tr><td>v0.2</td><td>2026-11-23</td><td>每个因子补“公式来源”标注；新增第七节参考文献（12 条）；新增 1.5 引用约定</td></tr>
   <tr><td>v0.3</td><td>2026-11-23</td><td>新增第八节“白话版”附录：逐因子说明含义、选取理由与风险</td></tr>
+  <tr><td>v0.4</td><td>2026-11-24</td><td>原始口径对齐工具；组分和算例集中到个股评分页</td></tr>
 </table>
 
 <p class="small no-print">本文件为自包含 HTML，双击用浏览器打开即可；不依赖网络与外部脚本，Ctrl+P 可直接打印或另存 PDF。</p>

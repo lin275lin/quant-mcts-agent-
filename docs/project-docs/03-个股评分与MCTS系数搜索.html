@@ -1,786 +1,351 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>一只股票是怎么算出分数的？</title>
-  <style>
-    :root { color-scheme: light; --ink: #192c36; --muted: #455d66; --line: #d0dedf; --accent: #0a6053; --surface: #eaf5f0; }
-    * { box-sizing: border-box; }
-    body { margin: 0; background: #fff; color: var(--ink); font: 16px/1.8 "Microsoft YaHei", "PingFang SC", sans-serif; }
-    main { max-width: 1040px; margin: auto; padding: 44px clamp(18px, 5vw, 50px) 64px; }
-    header { border-bottom: 3px solid var(--accent); padding-bottom: 24px; }
-    h1, h2, h3 { line-height: 1.4; }
-    h1 { margin: 0; font-size: clamp(30px, 5vw, 46px); }
-    h2 { font-size: 25px; margin: 0 0 10px; }
-    h3 { font-size: 18px; margin: 22px 0 8px; }
-    section { margin-top: 38px; scroll-margin-top: 18px; }
-    p { margin: 9px 0; }
-    nav { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 18px; }
-    a { color: var(--accent); text-underline-offset: 3px; }
-    ol, ul { padding-left: 1.5em; }
-    li + li { margin-top: 6px; }
-    code { font-family: Consolas, monospace; overflow-wrap: anywhere; }
-    .note, caption { color: var(--muted); }
-    .formula, aside { padding: 10px 15px; background: var(--surface); border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; }
-    .table-wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 15px; }
-    caption { text-align: left; margin: 6px 0; }
-    td, th { padding: 8px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
-    thead th { background: var(--surface); }
-    tbody th { white-space: nowrap; }
-    tfoot { font-weight: bold; }
-    .factor-table :is(td, th) { padding-inline: 8px; }
-    .factor-table td:last-child { width: 31%; }
-    [hidden] { display: none !important; }
-    .walkthrough { padding: clamp(14px, 4vw, 25px); background: #f3f9f6; border: 1px solid var(--line); border-radius: 10px; }
-    .walk-steps, .walk-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
-    .walk-steps { margin: 14px 0; }
-    .walkthrough button { min-height: 40px; padding: 5px 10px; font: inherit; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 5px; }
-    .walkthrough button[aria-current="step"], .walkthrough button[data-play] { color: #fff; background: var(--accent); border-color: var(--accent); }
-    .walkthrough button:disabled { opacity: .48; }
-    .walkthrough button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-    .walk-count { margin-inline-start: auto; font-size: 14px; color: var(--muted); }
-    .walk-scene { padding: 12px 0 4px; font-variant-numeric: tabular-nums; }
-    .walk-scene h3 { margin: 0 0 6px; }
-    .walk-scene p { overflow-wrap: anywhere; }
-    .walk-scene table { margin: 10px 0; }
-    .walk-scene td:last-child { font-weight: 700; }
-    .walk-positive { color: var(--accent); }
-    .walk-negative { color: #963f23; }
-    .walk-flow { display: grid; gap: 6px; padding-left: 1.5em; }
-    .walk-flow li { padding-left: 2px; }
-    .walk-total { display: block; padding: 7px 12px; border-left: 3px solid var(--accent); background: #e4f2ed; }
-    .walk-weight, .walk-gauge { display: flex; min-height: 16px; margin-top: 14px; background: #d8e6e5; position: relative; }
-    .walk-weight span { background: var(--segment-color); flex: var(--percent) 1 0; }
-    .walk-weight .walk-fixed { --segment-color: #c0d4d3; }
-    .walk-weight .walk-a { --segment-color: #288579; }
-    .walk-weight .walk-c { --segment-color: #80553d; }
-    .walk-gauge > span { position: absolute; inset-inline-start: 50%; inline-size: var(--increase); block-size: 100%; background: var(--accent); }
-    .walk-gauge > span::after { content: ""; position: absolute; inset-inline-end: 0; inset-block: -4px; inline-size: 2px; background: var(--ink); }
-    .walk-axis { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
-    @media (prefers-reduced-motion: no-preference) {
-      .walk-scene.walk-run .walk-reveal { animation: walk-reveal .42s ease-out var(--delay, 0ms) both; }
-      .walk-scene.walk-run .walk-grow { transform-origin: left; animation: walk-grow .65s ease-out var(--delay, 0ms) both; }
-    }
-    @keyframes walk-reveal { from { opacity: 0; translate: 0 .35em; } to { opacity: 1; translate: 0 0; } }
-    @keyframes walk-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-    @media print { .walkthrough { display: none; } }
-    @media print { main { padding: 0; } nav { display: none; } h2, h3 { break-after: avoid; } tr, .formula { break-inside: avoid; } }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>个股评分 · 从 20 个因子到总分</title>
+<style>
+  :root { color-scheme: light; --paper: #f6f5ed; --white: #fffef9; --ink: #192c25; --muted: #4e6459; --line: #cfd9ce; --green: #195a41; --dark: #18392e; --lime: #e1edb9; --soft: #eaf2e7; --red: #9b3a22; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.7 "Microsoft YaHei", "PingFang SC", sans-serif; }
+  a { color: var(--green); text-underline-offset: .22em; }
+  :focus-visible { outline: 3px solid #276e52; outline-offset: 4px; }
+  .shell { max-width: 1120px; margin: auto; padding: 0 clamp(16px, 5vw, 48px); }
+  header { padding: 18px 0 34px; }
+  .navigation { display: flex; flex-wrap: wrap; gap: 9px 20px; font-size: 14px; margin-bottom: 30px; }
+  .hero { display: grid; grid-template-columns: 1.45fr 1fr; gap: 30px; align-items: stretch; }
+  h1, h2, h3, p { margin: 0; }
+  h1 { font-size: clamp(31px, 5.3vw, 56px); line-height: 1.16; letter-spacing: -.035em; }
+  h2 { font-size: clamp(20px, 3vw, 29px); line-height: 1.35; }
+  h3 { font-size: 19px; line-height: 1.45; }
+  p + p { margin-top: 9px; }
+  .hero p { margin-top: 15px; }
+  .hero-intro { align-self: center; }
+  .formula { display: block; padding: 12px 15px; border-left: 3px solid var(--green); border-radius: 3px 9px 9px 3px; background: var(--soft); margin-top: 14px; overflow-wrap: anywhere; }
+  code, output, td.numeric { font: inherit; font-variant-numeric: tabular-nums; }
+  .hero .formula { font-weight: 650; }
+  .scorecard { background: var(--dark); color: var(--white); border-radius: 18px; padding: 22px 25px; min-width: 0; }
+  .scorecard h2 { font-size: 17px; font-weight: 550; }
+  .scoreline { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+  #score { font-size: clamp(45px, 7vw, 74px); line-height: 1.22; font-weight: 650; letter-spacing: -.05em; }
+  #action { color: var(--lime); }
+  .meter { position: relative; height: 7px; border-radius: 8px; margin-top: 17px; background: #557061; }
+  #meter-fill { width: 59.15%; height: 100%; border-radius: inherit; background: var(--lime); transition: width .35s ease; }
+  .scale { display: flex; justify-content: space-between; margin-top: 4px; color: #d7e1d7; font-size: 13px; }
+  .scorecard .score-note { font-size: 13px; color: #e1ebe2; }
+  main { padding-bottom: 48px; }
+  main > section { margin-bottom: 30px; scroll-margin-top: 12px; }
+  .panel { padding: clamp(15px, 3vw, 26px); border: 1px solid var(--line); border-radius: 16px; background: var(--white); }
+  .panel > h2 + p, article h3 + p { margin-top: 6px; }
+  .step-nav { display: flex; gap: 7px; flex-wrap: wrap; margin: 17px 0 13px; }
+  button { border: 1px solid #a6b7aa; padding: 7px 12px; min-height: 42px; border-radius: 8px; color: var(--ink); background: var(--white); font: inherit; cursor: pointer; }
+  button[aria-current="step"], #play[aria-pressed="true"] { background: var(--green); border-color: var(--green); color: white; }
+  button:disabled { opacity: .45; cursor: auto; }
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 17px; }
+  .step-counter { margin-left: auto; color: var(--muted); font-size: 14px; }
+  .stage { min-height: 300px; }
+  .stage article { border-top: 1px solid var(--line); padding: 17px 0 10px; }
+  .stage article.enter { animation: appear .27s ease both; }
+  @keyframes appear { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .muted { color: var(--muted); }
+  .small { font-size: 14px; }
+  .note { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 10px; color: var(--muted); }
+  .result { margin-top: 13px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .percentile { margin: 17px 0 6px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; min-height: 44px; }
+  .percentile span { display: grid; place-items: center; border-radius: 5px; background: var(--soft); font-size: 14px; }
+  .percentile .active { background: var(--green); color: white; font-weight: 650; }
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; margin: 9px 0 4px; text-align: left; font-size: 15px; }
+  td, th { padding: 6px 9px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  thead th { background: var(--soft); }
+  th { font-weight: 650; }
+  .numeric { text-align: right; white-space: nowrap; }
+  .control-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+  .control { padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); }
+  .control label { display: block; font-weight: 650; }
+  .control input[type="range"] { width: 100%; }
+  input { accent-color: var(--green); }
+  .worksheet { display: grid; grid-template-columns: 1.05fr 1fr; gap: 22px; align-items: start; margin-top: 13px; }
+  .bars { list-style: none; margin: 8px 0 0; padding: 0; }
+  .bars li { display: grid; grid-template-columns: 30px 1fr 62px; align-items: center; gap: 6px; min-height: 33px; }
+  .track { height: 11px; background: var(--soft); border-radius: 4px; position: relative; }
+  .track::after { content: ""; position: absolute; left: 50%; height: 100%; width: 1px; background: #93a499; }
+  .bar { position: absolute; left: 50%; width: var(--width, 0%); top: 0; height: 100%; background: var(--green); border-radius: 4px; transition: width .22s ease; }
+  .bar.negative { left: auto; right: 50%; background: var(--red); }
+  .bar-value { text-align: right; font-variant-numeric: tabular-nums; }
+  .overview { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; margin-top: 13px; }
+  .overview > div { padding: 12px 14px; background: var(--soft); border-radius: 9px; }
+  details { margin-top: 12px; }
+  summary { font-weight: 650; cursor: pointer; }
+  summary + p { margin-top: 8px; }
+  [hidden] { display: none !important; }
+  @media (max-width: 720px) { .hero, .worksheet, .overview { grid-template-columns: 1fr; gap: 12px; } .control-grid { grid-template-columns: 1fr; } header { padding-bottom: 22px; } .navigation { margin-bottom: 19px; } .stage { min-height: 0; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  @media print { .navigation, #walk-controls, .control-grid { display: none !important; } .stage article[hidden] { display: block !important; } .panel { break-inside: avoid-page; } }
+</style>
 </head>
 <body>
-<main>
-  <header>
-    <h1>一只股票是怎么算出分数的？</h1>
-    <p>先把每个因子换算成可比较的信号。同一组的信号取平均，得到组分。最后，每个组分乘自己的系数，加起来就是个股的综合信号。</p>
-    <p class="formula"><strong>20 因子评分公式</strong>　<code>S = wA × A组分 + wB × B组分 + wC × C组分 + wD × D组分 + wE × E组分 + wF × F组分</code>，<code>最终分 = clip(50 × k + (50 / 3) × S, 0, 100)</code>。</p>
-    <p><strong>每组都要先定义怎么算。</strong> 组内先把各因子标准化、定方向，再等权平均。组间点积得到因子贡献，基准分用 <code>50 × k</code>。<code>k</code> 是一个系数，基线取 1。MCTS 可以一起搜索指定组的权重和这个系数。</p>
-    <p class="note">检索工具目前返回 20 个原始因子的单日快照。动画演示组内等权的计算和买卖过程。五年 IC 加权和反向传播的比较见下方训练方案。综合评分、历史因子面板和 MCTS 仍待实现。</p>
-    <nav aria-label="章节">
-      <a href="#walkthrough">动画算一遍</a>
-      <a href="#backtest">怎么买卖回测</a>
-      <a href="#group">A 组怎么算</a>
-      <a href="#total">组系数与总分</a>
-      <a href="#training-options">两套权重训练方案</a>
-      <a href="#bias">基准分系数怎么搜</a>
-      <a href="#shape">方向与非线性</a>
-      <a href="#prediction">用 20 个因子预测涨跌</a>
-      <a href="#adjust">按预期调整</a>
-      <a href="#raw">20 个因子怎么算</a>
-      <a href="#validation">怎么验证</a>
-    </nav>
-  </header>
-
-  <section class="walkthrough" id="walkthrough" aria-labelledby="walk-heading">
-    <h2 id="walk-heading">动手算一遍这只股票</h2>
-    <p>点「播放」顺着看，或直接点组名。A 到 F 六组共 20 个因子，全部用于这只示例股票的总分。</p>
-    <div data-walk-controls hidden>
-      <div class="walk-steps" data-walk-steps role="group" aria-label="选择动画步骤"></div>
-      <div class="walk-actions" role="group" aria-label="控制动画播放">
-        <button type="button" data-play>播放</button>
-        <button type="button" data-prev>上一步</button>
-        <button type="button" data-next>下一步</button>
-        <span class="walk-count" data-walk-count></span>
-      </div>
+<header class="shell">
+  <nav class="navigation" aria-label="文档导航">
+    <a href="../index.html">文档索引</a><a href="02-因子定义与公式.html">原始因子怎么计算</a><a href="05-因子权重计算方案.html">IC、回测与反向传播</a>
+  </nav>
+  <div class="hero">
+    <div class="hero-intro">
+      <h1>一只股票，<br>怎样算出总分？</h1>
+      <p>20 个原始因子先算成 A–F 六组分，再把六份贡献加起来。用下面这只示例股票，把每一步走一遍。</p>
+      <div class="formula"><code>Score = 100 × bias + kA × A + kB × B + kC × C + kD × D + kE × E + kF × F</code></div>
     </div>
-    <div class="walk-scene" data-walk-scene aria-live="polite" aria-atomic="true">
-      <p>20 个交易日前收盘 100 元，今天收盘 110 元。两者一比，20 日动量是上涨 10%。</p>
+    <div class="scorecard">
+      <h2>示例股票 · 当日评分</h2>
+      <div class="scoreline" aria-live="polite"><output id="score">59.15</output><strong id="action">买入区</strong></div>
+      <div class="meter" aria-hidden="true"><div id="meter-fill"></div></div>
+      <div class="scale" aria-hidden="true"><span>0</span><span>50</span><span>100</span></div>
+      <p class="score-note">示例买入线 58 分，卖出线 45 分。展示分截在 0–100，交易分用未四舍五入的数值判断。</p>
     </div>
-    <noscript><p>启用 JavaScript 可播放动画。下方保留了文字算例。</p></noscript>
-  </section>
-
-  <section id="group">
-    <h2>A 组内部怎么算？</h2>
-    <p>以 <code>MOM20</code> 为例。今天复权收盘价 110 元，20 个交易观测前是 100 元，20 日动量就是 <code>110 / 100 − 1 = 10%</code>。接着看<strong>这次的 10% 比它自己平时强多少</strong>。</p>
-    <p><strong>平时均值怎么来？</strong> 把今天往前数 40 个交易观测，不含今天。对这 40 天中的每一天，都用<strong>那一天</strong>的收盘价和<strong>那一天往前 20 个交易观测</strong>的收盘价算一次 <code>MOM20</code>。把这 40 个 <code>MOM20</code> 加起来除以 40。每个因子都用自己的历史计算均值和标准差。</p>
-    <p class="formula"><strong>减均值，是问偏了多少。</strong> 今天 10%，平时 4%，所以高 6 个百分点。<br><strong>除以标准差，是问这有多反常。</strong> 把标准差当作一把尺子，一格代表平时的波动尺度。如果一格是 5 个百分点，今天就高了 1.2 格。如果一格是 10 个百分点，同样高出 6 个百分点，就只高了 0.6 格。</p>
-    <p>这个操作叫 <strong>Z 分数标准化</strong>。换手率、涨幅、RSI 都能用各自的尺子换算成“离平时几格”。<code>z = +1.2</code> 只表示原始值比平时高 1.2 格，历史训练才决定高了应该加分还是扣分。均值和标准差会受极端值影响，相邻的 20 日涨幅也共享许多交易日。首版先用这个容易解释的基线，后续可用样本外回测比较历史百分位或中位数与绝对偏差的做法。</p>
-    <ol>
-      <li><strong>把单位换成“离平时多远”。</strong> 假设这只股票此前 40 个交易观测的 20 日动量均值是 4%，标准差是 5 个百分点，今天就比均值高 <code>(10% − 4%) / 5% = 1.2</code> 个标准差。记作 <code>z = 1.2</code>，并把极端值截在 <code>−3</code> 到 <code>+3</code>。</li>
-      <li><strong>用历史决定高值该加分还是减分。</strong> 在训练段，比较同一只股票多天的因子 <code>z</code> 和后续收益，算 Pearson 相关系数，记作 <code>IC</code>。正相关用 <code>d = +1</code>，负相关用 <code>d = −1</code>，得到单因子信号 <code>q = d × z</code>。例如某因子的 <code>z = +0.4</code>，历史方向为负，今天它就贡献 <code>−0.4</code>。相关为零、算不出来或样本不足时，本轮该因子记为不可用。</li>
-      <li><strong>组内取平均。</strong> A 组有四个成员，分别算出信号再平均。B、C、D、E 组也按同一个办法计算，各组用自己的成员。</li>
-    </ol>
-    <div class="table-wrap" tabindex="0" role="region" aria-label="A 组计算示例">
-      <table>
-        <caption>A 组四个因子从原始值算到信号的示例</caption>
-        <thead><tr><th scope="col">因子</th><th scope="col">今天原始值</th><th scope="col">历史均值</th><th scope="col">历史标准差</th><th scope="col">标准化 z</th><th scope="col">训练方向 d</th><th scope="col">信号 q</th></tr></thead>
-        <tbody>
-          <tr><th scope="row">MOM20</th><td>10%</td><td>4%</td><td>5 个百分点</td><td>1.2</td><td>+1</td><td>+1.2</td></tr>
-          <tr><th scope="row">MOM60</th><td>14%</td><td>5%</td><td>5 个百分点</td><td>1.8</td><td>+1</td><td>+1.8</td></tr>
-          <tr><th scope="row">MOM120</th><td>30%</td><td>8%</td><td>10 个百分点</td><td>2.2</td><td>+1</td><td>+2.2</td></tr>
-          <tr><th scope="row">REV5</th><td>4%</td><td>2%</td><td>5 个百分点</td><td>0.4</td><td>−1</td><td>−0.4</td></tr>
-        </tbody>
-      </table>
+  </div>
+</header>
+<main class="shell">
+  <section class="panel" id="walkthrough">
+    <h2>跟着一只股票算一遍</h2>
+    <p class="muted">此处的因子、权重和阈值是演示输入。</p>
+    <div id="walk-controls" hidden>
+      <nav class="step-nav" id="steps" aria-label="计算步骤">
+        <button type="button" data-step="0">查百分位</button><button type="button" data-step="1">A 动量</button>
+        <button type="button" data-step="2">B 波动</button><button type="button" data-step="3">C 流动性</button>
+        <button type="button" data-step="4">D 量价</button><button type="button" data-step="5">E 技术</button>
+        <button type="button" data-step="6">F 基本面</button><button type="button" data-step="7">总分</button>
+      </nav>
+      <div class="actions"><button type="button" id="play" aria-pressed="false">播放</button><button type="button" id="previous">上一步</button><button type="button" id="next">下一步</button><span class="step-counter" id="step-counter" aria-live="polite"></span></div>
     </div>
-    <div class="formula">
-      <p><strong>A 组分</strong>　<code>(q(MOM20) + q(MOM60) + q(MOM120) + q(REV5)) / 4</code></p>
-      <p>套入上表就是 <code>(1.2 + 1.8 + 2.2 − 0.4) / 4 = <strong>1.20</strong></code>。</p>
-    </div>
-    <details>
-      <summary>查看 B、C、D、E、F 的组内公式</summary>
-      <ul>
-        <li><strong>B 波动</strong>　<code>(q(VOL20) + q(VOL60) + q(DVOL20)) / 3</code></li>
-        <li><strong>C 流动性与规模</strong>　<code>(q(TURN20) + q(AMIHUD20) + q(SIZE)) / 3</code></li>
-        <li><strong>D 量价形态</strong>　<code>(q(INTRA20) + q(CORR20) + q(VR)) / 3</code></li>
-        <li><strong>E 技术指标</strong>　<code>(q(RSI14) + q(AMP20)) / 2</code></li>
-        <li><strong>F 基本面</strong>　<code>(q(EP) + q(BP) + q(SP) + q(ROE) + q(REVG)) / 5</code></li>
-      </ul>
-    </details>
-    <h3 id="window">抓回来的日线够不够？</h3>
-    <p>当前配置从截止日往前抓 <strong>275 个自然日</strong>，交易记录会受到周末、休市和停牌影响。<code>MOM120</code> 到第 121 根日线才有第一个值。算今天的 <code>MOM120</code> 并留出完整的 40 个历史值，至少需要 <code>120 + 40 + 1 = 161</code> 根有效日线。<a href="../../config.py">抓取配置</a> · <a href="04-个股因子检索工具.html">检索工具说明</a></p>
-    <p><strong>固定用 40 个完整交易日的历史值。</strong> 日线不够时往前补。总市值和估值也要有逐日数据。季度 ROE、营收同比从公告可用日开始沿用到下一份公告，形成逐日数据。训练和 MCTS 校准需要另行加载更长的历史。</p>
-    <p><strong>窗口一改，分数也可能改。</strong> 短窗口通常更快跟上行情变化，长窗口纳入更多旧行情。均值和标准差都会变，同一个原始因子值可能得到不同的加分。动画末尾用同一只股票、同一套权重，只换 <code>MOM20</code> 的历史窗口，看分数有没有跨过原来的买入阈值。</p>
-    <p class="note">技术口径。标准化使用总体标准差，训练方向至少需要 60 对有效样本。季度数据在窗口内可能没变化，若今天也等于历史均值，该因子按 0 进入合成。若今天发生变化而历史标准差为 0，则当天无法标准化。20 项中任意一项缺少完整历史、当日值或训练方向时，记录缺失原因并保留原仓位。</p>
-  </section>
-
-  <section id="total">
-    <h2>MCTS 怎么挑系数，最后又怎么算分？</h2>
-    <p>假设今天 A 组是 <strong>1.20</strong>，另外五组也已经算好。这次只搜索动量组 A 和流动性与规模组 C 的系数。B、D、E、F 固定为 <code>0.20、0.25、0.05、0.10</code>，占 <strong>60%</strong>。A 和 C 分剩下的 <strong>40%</strong>。</p>
-    <p>MCTS 给 A 和 C 分别从 <code>{0.25, 0.5, 0.75, 1.0}</code> 里挑一个档位。假设某条路径选了 <code>0.75、0.25</code>，意思是按 <code>3:1</code> 分配剩余的 40%。真正乘在组分上的系数是 A 的 <code>0.40 × 0.75 = 0.30</code> 和 C 的 <code>0.40 × 0.25 = 0.10</code>。</p>
-    <div class="table-wrap" tabindex="0" role="region" aria-label="六个组对总分的贡献">
-      <table>
-        <thead><tr><th scope="col">组</th><th scope="col">今天的组分</th><th scope="col">系数来源</th><th scope="col">有效系数</th><th scope="col">乘出来的贡献</th></tr></thead>
-        <tbody>
-          <tr><th scope="row">A 动量与反转</th><td>1.20</td><td>搜索</td><td>0.30</td><td>+0.360</td></tr>
-          <tr><th scope="row">B 波动</th><td>0.40</td><td>固定</td><td>0.20</td><td>+0.080</td></tr>
-          <tr><th scope="row">C 流动性与规模</th><td>−0.20</td><td>搜索</td><td>0.10</td><td>−0.020</td></tr>
-          <tr><th scope="row">D 量价形态</th><td>0.30</td><td>固定</td><td>0.25</td><td>+0.075</td></tr>
-          <tr><th scope="row">E 技术指标</th><td>0.10</td><td>固定</td><td>0.05</td><td>+0.005</td></tr>
-          <tr><th scope="row">F 基本面</th><td>0.10</td><td>固定</td><td>0.10</td><td>+0.010</td></tr>
-        </tbody>
-        <tfoot><tr><th scope="row">合计</th><td></td><td></td><td>1.00</td><td>+0.510</td></tr></tfoot>
-      </table>
-    </div>
-    <p class="formula"><code>S = 0.51</code>。基线取 <code>k = 1</code>，最终分 <code>50 × 1 + (50 / 3) × 0.51 = <strong>58.50</strong></code>，进入买入区。实际建议再看持仓和组合风控。</p>
-    <p><strong>这分数在说什么？</strong> 58.50 分表示，把今天各项因子和该股自己的平时水平比较，再按训练方向和组权重加起来，正向贡献占上风。50 分对应综合信号为 0，比如正负贡献刚好抵消。这个分数是这套规则下的信号强度，给买、卖、保持原仓位的阈值使用。能否预测后续收益，需要看样本外回测。</p>
-    <p>在基线 <code>k = 1</code> 下，原始信号 <code>S = 0</code> 对应 50 分。原来的 <code>S = ±0.5</code> 两条动作线，换算成固定分数线就是 <code>50 ± (50 / 3) × 0.5</code>。程序用未四舍五入的最终分判断，页面上显示为约 58.33 分和 41.67 分。</p>
-    <details>
-      <summary>查看系数搜索的通用公式和边界</summary>
-      <p>剩余预算 <code>R = 1 − 所有固定系数之和</code>。每个待搜组的有效系数 <code>w[k] = R × a[k] / 所有待搜档位之和</code>，固定组的有效系数等于配置值。六组系数均为正，总和为 1，因此总信号仍在 <code>[−3, 3]</code>，展示分数在 <code>[0, 100]</code>。</p>
-      <p>两组各有四档，有 16 个档位组合，比例相同的候选共用回测结果。只有一个待搜组时，它直接拿走全部剩余权重。若要比较它占 20% 还是 30%，还要指定一个能承接差额的组。没有待搜组时，六组固定系数加起来须为 1。</p>
-    </details>
-  </section>
-
-  <section id="bias">
-    <h2>用一个系数乘 50，搜索空间怎么算？</h2>
-    <p><strong>50 乘系数 <code>k</code>，再加六组因子提供的分数。</strong> <code>k</code> 乘在 50 上，因子项仍是 <code>(50 / 3) × S</code>。最后把结果限制在 0–100 之间。用户看到和买卖使用的都是这个最终分。</p>
-    <p class="formula">沿用 <code>S = 0.37</code> 的例子，因子项约为 <code>6.17</code> 分。<code>k = 1</code> 时，<code>50 × 1 + 6.17 ≈ 56.17</code> 分，保持原仓位。<code>k = 1.08</code> 时，<code>50 × 1.08 + 6.17 ≈ 60.17</code> 分，跨过约 <code>58.33</code> 分的买入线。</p>
-    <p><code>k</code> 越大，评分的起点越高。测试它时固定买卖线，比较它对回测的影响。</p>
-    <div class="table-wrap" tabindex="0" role="region" aria-label="基准分系数与权重的候选组合数">
-      <table>
-        <thead><tr><th scope="col">待搜参数</th><th scope="col">每个参数的档位数</th><th scope="col">档位组合</th></tr></thead>
-        <tbody>
-          <tr><th scope="row">六组权重 + k</th><td>六组各 5 档，k 取 5 档</td><td><code>5⁷ = 78,125</code></td></tr>
-          <tr><th scope="row">六组权重 + k</th><td>沿用项目的四个正权重档位，k 取 5 档</td><td><code>4⁶ × 5 = 20,480</code></td></tr>
-          <tr><th scope="row">只搜 A、C + k</th><td>A、C 各 4 档，k 取 5 档</td><td><code>4² × 5 = 80</code></td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p>这些是归一化前的档位组合数。权重比例与 <code>k</code> 都相同的候选共用回测结果。只搜 A、C 时，16 对档位实际有 11 种比例，乘上 <code>k</code> 的五档后共有 55 套不同的参数。</p>
-    <p>MCTS 可以先给待搜组选档，最后给 <code>k</code> 选一档，例如 <code>{0.92, 0.96, 1.00, 1.04, 1.08}</code>，对应基准分 <code>{46, 48, 50, 52, 54}</code>。每条完整路径对应一套权重和一个固定的 <code>k</code>，用它跑完整段扣费回测，再用夏普比率评价。最后冻结参数看样本外表现。</p>
-  </section>
-
-  <section id="shape">
-    <h2>乘负数能反方向，能解决“太高也不好”吗？</h2>
-    <p><strong>负号只能把方向翻过来。</strong> 比如高波动在训练中通常对应较差的后续收益，<code>z = +2</code> 就变成 <code>q = −2</code>。组系数仍然可以是正的，这一组照样会减分。把组系数也乘负数，会把组内所有成员一起翻转。</p>
-    <p><strong>如果适中最好，正负号都表达不了。</strong> 比如对量比 <code>VR</code> 的一种研究假设是，量能稍微放大时加分，太冷清或过热时扣分。可以先用训练段为 <code>VR</code> 定一条曲线并合并到 D 组，再用后续独立时段检验这条曲线。</p>
-    <div class="table-wrap" tabindex="0" role="region" aria-label="线性信号和适中最好曲线的对比">
-      <table>
-        <caption>下面用三个假设值对比。曲线试验式为 <code>q = clip(0.5 − |z − 0.5|, −3, 3)</code>。</caption>
-        <thead><tr><th scope="col">量能状态</th><th scope="col">标准化 z</th><th scope="col">设为正向 q = z</th><th scope="col">设为负向 q = −z</th><th scope="col">设为适中最好</th></tr></thead>
-        <tbody>
-          <tr><th scope="row">偏冷清</th><td>−1.0</td><td>−1.0</td><td>+1.0</td><td>−1.0</td></tr>
-          <tr><th scope="row">适度放量</th><td>+0.5</td><td>+0.5</td><td>−0.5</td><td>+0.5</td></tr>
-          <tr><th scope="row">明显放量</th><td>+2.0</td><td>+2.0</td><td>−2.0</td><td>−1.0</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p><strong>点积负责把信号相加。</strong> 单个因子怎么随原始值变化，由它自己的信号公式决定。首版用定方向后的标准分，超出 ±3 后贡献就饱和。后续如果某个因子确实需要拐弯，就改这一项的信号曲线，组间仍然可以用同一个点积。58.50 分只表示按这套规则偏正的信号，分数本身无法换算成涨幅或上涨概率。</p>
-    <h3>这条公式能任意逼近吗？</h3>
-    <p>以六个组分为输入时，<code>50 × k + (50 / 3) × (w · G)</code> 是仿射函数。固定其他组，改变其中一组时，截断前只会沿一个斜率变化。截断让分数在边界饱和，仍无法让同一组在中等水平加分、偏高和偏低时都扣分。MCTS 搜权重可以改斜率，搜 <code>k</code> 可以改起点，函数形状仍由评分公式决定。</p>
-    <p>若历史数据支持“某个因子适中最好”，可以将表里的非线性曲线作为独立实验，再比较它和现有基线的样本外表现。通用近似定理研究的是另一类模型。例如带非线性激活、隐藏单元足够的网络，可以在紧致区域上一致逼近连续函数。这个定理描述模型能表达什么，实际预测效果仍要验证。<a href="https://doi.org/10.1007/BF02551274">Cybenko（1989）</a></p>
-  </section>
-
-  <section id="adjust">
-    <h2>后续怎么按预期调整？</h2>
-    <table>
-      <thead><tr><th scope="col">你的预期</th><th scope="col">改哪里</th><th scope="col">怎么验证</th></tr></thead>
-      <tbody>
-        <tr><th scope="row">更看重动量</th><td>把 A 列为待搜组，或给 A 的<strong>有效系数</strong>设范围，例如 20%–30%。</td><td>保持因子公式和阈值一致，对比默认权重和新权重。</td></tr>
-        <tr><th scope="row">某因子高了可能减分</th><td>查看训练段相关方向，或先提出“适中最好”的曲线假设。</td><td>把历史因子分为低、中、高几档，比较各档后续收益和样本量。用后续独立时段比较曲线和首版直线。</td></tr>
-        <tr><th scope="row">希望少买、少冒险</th><td>调整买入阈值、目标仓位或风险上限。</td><td>固定权重，比较交易次数、成本和回撤。</td></tr>
-      </tbody>
-    </table>
-    <p>拿上面的股票来说，从 A 的权重挪 10 个百分点给 C，A 变成 <code>0.20</code>，C 变成 <code>0.20</code>，其他组照旧。总信号少了 <code>0.10 × (1.20 − (−0.20)) = 0.14</code>，于是 <code>S</code> 从 <code>0.51</code> 降到 <code>0.37</code>，分数变成 <strong>56.17</strong>，落回保持原仓位区。这个变化只说明今天的 A 分比 C 高。哪种配法更合适，由同一段历史的回测和后续独立时段决定。</p>
-    <p class="note">实验顺序。先写下假设和允许调整的参数，在训练、校准用的历史上确定它们，冻结后再评估测试段。新的预期写进下一轮实验，线上使用已通过验证的配置。</p>
-  </section>
-
-  <section id="raw">
-    <h2>20 个因子的原始值怎么算？</h2>
-    <p>日收益用后复权收盘价算，<code>r = 今日价 / 上个有效交易日价 − 1</code>。日内价差用原始价。成交量按股，成交额按元，换手率例子用百分数。滚动窗口按有效交易观测计，停牌日不进因子窗口，撮合仍使用交易所日历。窗口不足、数据无效或分母为零时记为缺失，RSI 的边界按表中规则处理。</p>
-    <div class="table-wrap" tabindex="0" role="region" aria-label="二十个因子的公式和例子">
-      <table class="factor-table">
-        <caption>A–F 六组共 20 项。检索返回这 20 项，评分方案也使用这 20 项。</caption>
-        <thead><tr><th scope="col">组</th><th scope="col">因子</th><th scope="col">用什么数据，做什么运算</th><th scope="col">小例子</th></tr></thead>
-        <tbody>
-          <tr><td>A</td><th scope="row"><code>MOM20</code></th><td>今天复权收盘价 ÷ 20 个交易观测前的复权收盘价 − 1。衡量最近约一个月涨跌。</td><td>110 元 ÷ 100 元 − 1 = <strong>10%</strong>。</td></tr>
-          <tr><td>A</td><th scope="row"><code>MOM60</code></th><td>今天复权收盘价 ÷ 60 个交易观测前的复权收盘价 − 1。</td><td>114 元 ÷ 100 元 − 1 = <strong>14%</strong>。</td></tr>
-          <tr><td>A</td><th scope="row"><code>MOM120</code></th><td>今天复权收盘价 ÷ 120 个交易观测前的复权收盘价 − 1。</td><td>130 元 ÷ 100 元 − 1 = <strong>30%</strong>。</td></tr>
-          <tr><td>A</td><th scope="row"><code>REV5</code></th><td>先算最近 5 个交易观测的涨跌幅，再取反。跌得越多，这个原始数值越大，实际加减分还要看训练方向。</td><td>96 元 ÷ 100 元 − 1 = −4%，取反得 <strong>+4%</strong>。</td></tr>
-          <tr><td>B</td><th scope="row"><code>VOL20</code></th><td>把近 20 个日收益放在一起，算样本标准差，衡量日涨跌有多分散。</td><td>用 3 天演示，<code>−2%、0%、+2%</code> 的样本标准差为 <strong>2%</strong>。</td></tr>
-          <tr><td>B</td><th scope="row"><code>VOL60</code></th><td>同样算日收益的样本标准差，窗口换成 60 个观测。</td><td>若 60 天的日涨跌都一样，样本标准差为 <strong>0%</strong>。</td></tr>
-          <tr><td>B</td><th scope="row"><code>DVOL20</code></th><td>取近 20 个日收益。上涨和持平日记 0，下跌日把跌幅平方。20 个值取均值，再开平方。</td><td>用 4 天演示，<code>+2%、−4%、0%、0%</code> 算出 <strong>2%</strong>。</td></tr>
-          <tr><td>C</td><th scope="row"><code>TURN20</code></th><td>近 20 个交易观测的日换手率取平均，衡量平时有多少流通股换手。</td><td>20 天都为 2%，均值就是 <strong>2%</strong>。</td></tr>
-          <tr><td>C</td><th scope="row"><code>AMIHUD20</code></th><td>每天先用日涨跌幅的绝对值除以成交额，再对 20 天结果取平均并乘 1 亿。成交额越小，同样的涨跌幅对应的值越大。</td><td>单日涨跌幅绝对值为 2%，成交额为 2 亿元，该日的缩放值为 <strong>0.01</strong>。</td></tr>
-          <tr><td>C</td><th scope="row"><code>SIZE</code></th><td>直接读取总市值，换算成元后取自然对数。</td><td>总市值 100 亿元，<code>ln(10,000,000,000)</code> 约为 <strong>23.03</strong>。</td></tr>
-          <tr><td>D</td><th scope="row"><code>INTRA20</code></th><td>每天先用成交额 ÷ 成交股数求成交均价，再算原始收盘价比成交均价高了多少，取 20 天平均。</td><td>成交均价 100 元，收盘 102 元，当天为 <strong>+2%</strong>。</td></tr>
-          <tr><td>D</td><th scope="row"><code>CORR20</code></th><td>取近 20 天的复权收盘价和成交量。先对每个成交量取自然对数，再算价格与对数成交量的 Pearson 相关系数。</td><td>用 3 天演示，价格为 <code>10、11、12</code>，量为 <code>1 万、2 万、4 万股</code>，相关为 <strong>+1</strong>。</td></tr>
-          <tr><td>D</td><th scope="row"><code>VR</code></th><td>近 5 天平均成交量 ÷ 近 20 天平均成交量，比较最近几天与近期平常的量能。</td><td>5 日均量 150 万股，20 日均量 100 万股，量比为 <strong>1.5</strong>。</td></tr>
-          <tr><td>E</td><th scope="row"><code>RSI14</code></th><td>取 14 个日收益，上涨幅度取均值（非上涨日记 0），下跌幅度也取均值（非下跌日记 0）。把前者除以后者得到 <code>RS</code>，再算 <code>100 − 100 / (1 + RS)</code>。</td><td>平均涨幅 2%、平均跌幅 1%，<code>RS = 2</code>，RSI 为 <strong>66.67</strong>。只有上涨时为 100，全部持平时为 50。</td></tr>
-          <tr><td>E</td><th scope="row"><code>AMP20</code></th><td>每天的最高价减最低价，再除以开盘价。取近 20 天均值，衡量盘中价格波动范围。</td><td>高 105 元、低 98 元、开盘 100 元，当天振幅为 <strong>7%</strong>。</td></tr>
-          <tr><td>F</td><th scope="row"><code>EP</code></th><td>过去 12 个月净利润除以总市值，用市盈率倒数 <code>1 / PE_TTM</code> 计算。倍数缺失或为零时留空。</td><td>市盈率 20 倍，EP 为 <strong>5%</strong>。市盈率 −20 倍，EP 为 <strong>−5%</strong>，表示过去 12 个月每 100 元市值对应约 5 元亏损。</td></tr>
-          <tr><td>F</td><th scope="row"><code>BP</code></th><td>账面净资产除以总市值，用市净率倒数 <code>1 / PB</code> 计算。倍数缺失或为零时留空。</td><td>市净率 2 倍，BP 为 <strong>0.5</strong>。市净率为负，BP 也为负，反映该口径下的净资产为负。</td></tr>
-          <tr><td>F</td><th scope="row"><code>SP</code></th><td>过去 12 个月营收除以总市值，用市销率倒数 <code>1 / PS_TTM</code> 计算。倍数缺失或为零时留空。</td><td>市销率 4 倍，营收市值比为 <strong>0.25</strong>。</td></tr>
-          <tr><td>F</td><th scope="row"><code>ROE</code></th><td>工具直接读取最新报告期披露的加权净资产收益率 <code>ROEJQ</code>，并把百分数换为小数。</td><td>报告披露 <strong>12%</strong>，工具返回 0.12。</td></tr>
-          <tr><td>F</td><th scope="row"><code>REVG</code></th><td>工具读取最新报告期披露的营业收入同比字段 <code>TOTALOPERATEREVETZ</code>，并把百分数换为小数。</td><td>同期营业收入从 10 亿元变成 12 亿元，披露的同比为 <strong>20%</strong>，工具返回 0.20。</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="note">价量公式采用草稿口径，正式接入评分前需统一代码使用的前复权行情、年化波动率、下行标准差、收盘相对开盘的 INTRA、原始成交量的 CORR 和 Wilder RSI。PE、PB、PS 随 BaoStock 日线返回。总市值和财务取最新快照，历史实验需要另按日期对齐。<a href="02-因子定义与公式.html">因子定义与公式</a> · <a href="04-个股因子检索工具.html">检索与字段说明</a></p>
-  </section>
-
-  <section id="training-options">
-    <h2>组内权重怎么学？</h2>
-    <p>同一套 20 个因子可走两条训练路线。两条路线先预测 5 个交易日，再另做 10 个交易日的实验。今天收盘出信号，从明天开盘开始计算后续收益。</p>
-    <div class="table-wrap" tabindex="0" role="region" aria-label="两套因子权重训练方案">
-      <table>
-        <thead><tr><th scope="col">方案</th><th scope="col">怎么定参数</th><th scope="col">输出</th></tr></thead>
-        <tbody>
-          <tr><th scope="row">五年 IC + MCTS</th><td>用每个因子与后续收益的五年历史相关度定组内权重。再用 MCTS 为指定组和偏置选档，比较扣费后的回测表现。</td><td>0–100 的交易信号分</td></tr>
-          <tr><th scope="row">逻辑回归与反向传播</th><td>用实际涨跌标签学习因子权重，先测逻辑回归，再测带一个隐藏层的小网络。</td><td>模型估计的上涨概率</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p id="single-stock-ic"><strong>单股权重用五年整段 Spearman 相关。</strong> 每一行是这只股票一天的标准化因子值和它实际发生的 5 日收益。把这只股票五年里的因子值和收益分别排名，按原日期配对，再算相关度。A 组的 MOM20、MOM60、MOM120、REV5 各算一次，再归一化成四个组内权重。换成 10 日收益时再算一套。</p>
-    <p>五年里每天提供一对样本。若已经按年算出五个相关系数，它们可以用来检查该因子在不同年份是否同向。正式权重用五年全部配对样本得到的整段相关度。给多只股票共用一套权重时，可以用下面的股票池排名法。</p>
-    <details id="mom20-rank-ic">
-      <summary>手算股票池的 MOM20 排名相关度和组内权重</summary>
-      <p>假设某天收盘，股票池只有四只股票。对每只股票取当天的 MOM20 标准化值，以及次日开盘到第六个交易日开盘的收益。比如乙股的复权开盘价从 10 元变成 10.30 元，五日收益就是 <code>10.30 ÷ 10 − 1 = +3%</code>。</p>
-      <div class="table-wrap" tabindex="0" role="region" aria-label="同一天四只股票的动量和五日收益排名">
-        <table>
-          <thead><tr><th scope="col">股票</th><th scope="col">MOM20 标准化值</th><th scope="col">五日收益</th><th scope="col">MOM20 排名</th><th scope="col">收益排名</th></tr></thead>
+    <div class="stage">
+      <article id="percentile-lookup" data-scene>
+        <h3>今天的 MOM20，在过去排第几？</h3>
+        <p>假设此前有 100 个有效的 MOM20 观测，20 个小于今天的值。今天处在第 20 百分位，换成分数就是 <strong>−30</strong>。</p>
+        <div class="percentile" aria-label="第 20 百分位对应负 30 分"><span class="active">20% · −30</span><span>40% · −10</span><span>60% · +10</span><span>80% · +30</span><span>100% · +50</span></div>
+        <div class="formula"><code>Pₜ(x) = (比 x 小的历史值个数 + 0.5 × 与 x 相等的个数) ÷ 历史观测总数<br>Qₜ(x) = 100 × Pₜ(x) − 50</code></div>
+        <p class="note">用评分日之前的有效观测查表。当天收盘评分完成后，才把这天的因子值加入历史表。百分位描述历史位置。</p>
+      </article>
+      <article id="group-a" data-scene>
+        <h3>A · 哪个动量窗口给分？</h3>
+        <p>训练段把每个因子原值与未来 5 日收益按日期配对，算一次 Spearman IC。绝对值小于 0.03 的置零，再按保留下来的 IC 绝对值之和归一化，保留正负。</p>
+        <div class="scroll"><table>
+          <thead><tr><th scope="col">因子</th><th scope="col" class="numeric">示例 IC</th><th scope="col" class="numeric">组内权重</th><th scope="col" class="numeric">今日 Q</th><th scope="col" class="numeric">贡献</th></tr></thead>
           <tbody>
-            <tr><th scope="row">甲</th><td>−1.0</td><td>−1%</td><td>1</td><td>1</td></tr>
-            <tr><th scope="row">乙</th><td>0.0</td><td>+3%</td><td>2</td><td>3</td></tr>
-            <tr><th scope="row">丙</th><td>+0.5</td><td>+1%</td><td>3</td><td>2</td></tr>
-            <tr><th scope="row">丁</th><td>+1.5</td><td>+5%</td><td>4</td><td>4</td></tr>
+            <tr><th scope="row">MOM20 · 20 日动量</th><td class="numeric">−0.10</td><td class="numeric">−0.50</td><td class="numeric">−30</td><td class="numeric">+15.00</td></tr>
+            <tr><th scope="row">MOM60 · 60 日动量</th><td class="numeric">−0.05</td><td class="numeric">−0.25</td><td class="numeric">+10</td><td class="numeric">−2.50</td></tr>
+            <tr><th scope="row">MOM120 · 120 日动量</th><td class="numeric">−0.02</td><td class="numeric">0</td><td class="numeric">−20</td><td class="numeric">0.00</td></tr>
+            <tr><th scope="row">REV5 · 5 日反转</th><td class="numeric">+0.05</td><td class="numeric">+0.25</td><td class="numeric">+40</td><td class="numeric">+10.00</td></tr>
           </tbody>
-        </table>
-      </div>
-      <p>乙和丙各错一位，名次差的平方和是 <code>0² + (−1)² + 1² + 0² = 2</code>。这四只股票的名次都不同，当天 RankIC 就是 <code>1 − 6 × 2 ÷ [4 × (4² − 1)] = +0.80</code>。</p>
-      <p>对五年内每个可计算的信号日重复这一遍，再算平均。如果 1,000 个有效日的 RankIC 加起来是 50，MOM20 的五年平均值就是 <code>0.05</code>。换 10 日持有期时，用次日开盘到第十一个交易日开盘的收益重算。</p>
-    </details>
-    <p>比如 A 组四个因子的五年平均 RankIC 分别为 <code>+0.05、+0.03、+0.01、−0.01</code>，绝对值总和为 <code>0.10</code>，MOM20 的组内权重 <code>wA1 = 0.05 ÷ 0.10 = +0.50</code>。四个组内权重各乘今天对应的因子值再相加，得到 A 组分。MCTS 搜的是乘在整个 A 组分上的 <code>kA</code>。</p>
-    <p>先用本地历史训练，随后校准，最后到更晚的数据上检验。月内每天更新股分，月度校准再更新参数。完整的权重公式、偏置换算和回测划分见<a href="05-因子权重计算方案.md">因子权重计算方案</a>。</p>
-  </section>
-
-  <section id="prediction">
-    <h2>用 20 个因子预测什么？</h2>
-    <p><strong>把每天当作一道有标准答案的题。</strong> 第 <code>t</code> 天收盘，模型只能看到当时已知的 20 个因子。按现有撮合，最快第 <code>t+1</code> 天开盘成交，因此目标收益取 <code>r[t] = Oadj[t+2] / Oadj[t+1] − 1</code>，其中 <code>Oadj</code> 是一致复权口径的开盘价。<code>r[t] &gt; 0</code> 记为上涨，标签 <code>y[t] = 1</code>，平盘和下跌记为 <code>0</code>。</p>
-    <p>想预测涨跌，就让模型输出上涨概率 <code>p[t]</code>，与实际涨跌标签比较。想拟合连续曲线，就把同一串 <code>r[t]</code> 作为目标，比较预测收益和实际收益的误差。这两个任务可以各自验证。</p>
-    <h3 id="within-group">A 组内部的权重怎么定？</h3>
-    <p>这个实验先等权。<code>q</code> 是已经标准化并确定方向的单因子分。A 组四个因子各占 25%，所以 <code>G[A] = 0.25 × q(MOM20) + 0.25 × q(MOM60) + 0.25 × q(MOM120) + 0.25 × q(REV5)</code>。其他组也按自己的因子个数平分。<code>wA</code> 是整个 A 组在模型里的权重，<code>b[A]</code> 是 A 组进入神经元前的偏置，这两项各有自己的用途。</p>
-    <p>想检验 A 组内部是否值得用不同权重，可以只放开这一组的四个权重。比如给四项各选 <code>{1, 2, 3, 4}</code> 中的一档，再各自除以四项之和。这有 <code>4⁴ = 256</code> 个归一化前的档位组合，可用 MCTS 或穷举。其余参数先固定，每套候选仍然用<strong>整个模型</strong>的预测误差来评价，并与 A 组等权对照。</p>
-    <p>反向传播适合后续想连续优化组内权重、组间权重和偏置的实验。它负责计算预测损失对参数的梯度，再由优化器更新参数。当前的等权基线和离散档位搜索都可以直接计算预测误差。</p>
-    <p><strong>等权适合作为对照，组内先压成一个数会丢信息。</strong> A 组的四项信号若分别是 <code>[2, 0, 0, 0]</code> 和 <code>[0, 0, 0, 2]</code>，组分都是 <code>0.5</code>。若 20 日动量强、5 日反转强对后续涨跌的影响不同，只看到这个组分的神经元就分不出两种情况。MCTS 换偏置也看不到已丢失的差别。</p>
-    <p>可用同样的训练、校准和测试日期，比较「六组各一个神经元」与「20 个因子直接输入多个隐藏单元」两种模型。后者保留每个因子的数值，隐藏单元可以同时使用两个组的输入，适合检验组内差别和组间配合是否能提高样本外预测。两个实验都以真实的后续涨跌为目标。</p>
-    <h3>六个组神经元怎样参与预测？</h3>
-    <p>先按 A–F 六组计算组分。每组的神经元算 <code>h[g,t] = 2 × sigmoid(G[g,t] + b[g]) − 1</code>。偏置 <code>b[g]</code> 改变该组开始明显加分的位置。六组输出乘各组权重后相加，再经过 <code>sigmoid</code> 得到上涨概率。</p>
-    <p class="formula"><code>p[t] = sigmoid(wA × h[A,t] + wB × h[B,t] + … + wF × h[F,t])</code></p>
-    <p><code>50 × k</code> 属于前面 0–100 分的评分基线。方向预测实验使用上面的概率公式，<code>b[g]</code> 是各组在非线性激活前的偏置。</p>
-    <h3>MCTS 用什么判断参数搜得好？</h3>
-    <ol>
-      <li><strong>在校准段比较预测。</strong> 先固定组间权重，给六个组偏置各设五档。每条 MCTS 路径选出一套偏置，逐日预测 <code>p[t]</code>。比较预测与真实标签，例用平均 <code>(p[t] − y[t])²</code> 给候选打分，误差越小越好。</li>
-      <li><strong>在测试段看准确度。</strong> 冻结参数，统计预测方向命中率，并和常预测同一方向的简单基准比较。所有模型用相同的有标签日期评估。</li>
-      <li><strong>最后回测怎么买卖。</strong> 固定买卖阈值和撮合规则，用这些预测跑历史交易，报告扣除费用后的收益、回撤和夏普比率。方向预测命中率和交易盈亏各自报告。</li>
-    </ol>
-    <p class="note">这一节是预测实验方案。下方的交易流水继续演示用 0–100 评分阈值下单的基线，项目尚未实现方向预测或回测引擎。</p>
-  </section>
-
-  <section id="backtest">
-    <h2>一组权重，怎么买卖回测？</h2>
-    <p><strong>MCTS 要找的是在历史里按规则交易、扣完成本后表现较好的组权重。</strong> 动画里的 0 到 100 是信号刻度，历史股价用来模拟成交和估值，账户净值是交易跑完后画出来的结果。用来定因子方向的后续收益标签也只用于训练方向。</p>
-    <p class="formula"><strong>看最终分决定次日动作。</strong> 到买入线就准备补到 30% 仓位，到卖出线就准备清仓。以下流水使用 <code>k = 1</code> 的基线，所以表里也能直接用原始信号 <code>S</code> 对照 <code>±0.5</code>。</p>
-    <ol>
-      <li><strong>当天收盘产生信号。</strong> 用同一组候选权重逐日计算因子贡献，再加该候选的基准分 <code>50 × k</code> 得到最终分。最终分达到买入线就计划加仓，跌到卖出线就计划清仓，中间区保持原有股数。</li>
-      <li><strong>下一交易日开盘才成交。</strong> 买入时，根据当时的现金、开盘价、费用和成交单位，买到可达到的 30% 目标仓位。已经达到目标就不加仓。卖出时卖掉可卖股份，模拟持有区不下单。遇到停牌或涨跌停无法成交时保留仓位，记录理由。</li>
-      <li><strong>更新现金、股数和净值。</strong> 买入时从现金扣成交额和费用，卖出时把扣费后的收入加回现金。每个交易日开盘处理订单后，记录 <code>净值 = 现金 + 股数 × 估值价</code>。估值使用开盘价，停牌时沿用最近一次可用的估值价。连续两个交易日的开盘后净值可计算一日净收益。空仓也照常记账。</li>
-    </ol>
-    <h3>示例账户怎样从 110,000 元变成 112,980 元？</h3>
-    <p>假设起始资金 110,000 元，每笔费用 10 元，示例成交单位为 100 股。后两天的信号和三个开盘价均为演示数据。</p>
-    <div class="table-wrap" tabindex="0" role="region" aria-label="买入、持有、卖出的账户流水">
-      <table>
-        <thead><tr><th scope="col">前一晚收盘信号</th><th scope="col">下一交易日开盘</th><th scope="col">动作</th><th scope="col">成交后现金</th><th scope="col">剩余股数</th><th scope="col">开盘后净值</th></tr></thead>
-        <tbody>
-          <tr><th scope="row">第 1 天 · +0.51</th><td>第 2 天 · 100 元</td><td>买 300 股，付 10 元费用</td><td>79,990 元</td><td>300</td><td>109,990 元</td></tr>
-          <tr><th scope="row">第 2 天 · +0.10</th><td>第 3 天 · 105 元</td><td>继续持有</td><td>79,990 元</td><td>300</td><td>111,490 元</td></tr>
-          <tr><th scope="row">第 3 天 · −0.60</th><td>第 4 天 · 110 元</td><td>卖 300 股，付 10 元费用</td><td>112,980 元</td><td>0</td><td>112,980 元</td></tr>
-        </tbody>
-      </table>
+        </table></div>
+        <p class="result">A = 15 − 2.50 + 0 + 10 = +22.50 分</p>
+        <p class="note">组内权重全部为零时，A 得 0 分。示例里 MOM20 的因子分和权重都是负数，乘起来反而为正。</p>
+      </article>
+      <article id="group-b" data-scene>
+        <h3>B · 波动超限，扣多少？</h3>
+        <p>VOL20 是 20 日年化波动率，VOL60 是 60 日年化波动率。取两者较高的值，再与年化波动上限比较。DVOL20 对照单独的下行波动上限。</p>
+        <div class="formula"><code>B = −50 × [1 − min(1, σ* ÷ max(VOL20, VOL60), d* ÷ DVOL20)]</code></div>
+        <p class="result">示例：max(30%, 20%) = 30%。24% ÷ 30% 和 12% ÷ 15% 都等于 0.8，所以 B = −10.00 分。</p>
+        <p class="note">波动在预算内时，B 为 0。波动目标的思路来自组合仓位缩放；这里把它改写成个股扣分。</p>
+      </article>
+      <article id="group-c" data-scene>
+        <h3>C · 最难满足的交易条件，决定扣分</h3>
+        <p>检查三项：TURN20 的平均换手率够不够、AMIHUD20 的价格冲击是否太高、总市值是否达到门槛。SIZE 存的是对数，用 <code>exp(SIZE)</code> 还原为元。</p>
+        <div class="formula"><code>C = −50 × [1 − min(1, TURN20 ÷ T*, I* ÷ AMIHUD20, exp(SIZE) ÷ M*)]</code></div>
+        <p class="result">示例：换手 1.2% ÷ 1.5% = 0.8；非流动性 0.036 ÷ 0.040 = 0.9；市值 120 亿 ÷ 100 亿 = 1.2。最小的是 0.8，所以 C = −10.00 分。</p>
+        <p class="note">三项都在允许范围内，C 就为 0。交易条件好的股票连续多天不扣分是公式的正常结果。</p>
+      </article>
+      <article id="group-d" data-scene>
+        <h3>D · 日内走势一样，放量与缩量会得不同的分</h3>
+        <p>先算论文组合 X：每天把 CORR20 乘上过去 20 日最高价减最低价的偏度，再对这些乘积取 10 日均值。比如今天 0.40 × (−0.50) = −0.20；假设十天平均为 0.06，查到历史第 60 百分位，Q(X) 就是 +10。</p>
+        <div class="formula"><code>X = MA₁₀[CORR20 × Skew₂₀(最高价 − 最低价)]<br>D = 0.5 × s日内,状态 × Q(INTRA20) + 0.5 × sX × Q(X)</code></div>
+        <p>VR = 近 5 日均量 ÷ 近 20 日均量。VR ≥ 1 时用放量方向，其余用缩量方向。两种日内方向和 X 的方向都取训练期 IC 的符号。</p>
+        <p class="result" id="d-example">示例放量：0.5 × (+1) × 20 + 0.5 × (−1) × 10 = +5.00 分。</p>
+        <p class="note">在下方切到「缩量」会把日内这一项从 +10 改成 −10。X 的贡献保持 −5。</p>
+      </article>
+      <article id="group-e" data-scene>
+        <h3>E · RSI 给方向，振幅给正分打折</h3>
+        <p>把 RSI14 的 Q 分取反，得到短线反转分 R。AMP20 高于上限时，正分乘上「上限 ÷ 实际振幅」。</p>
+        <div class="formula"><code>R = −Q(RSI14)<br>E = min(R, 0) + max(R, 0) × min(1, A* ÷ AMP20)</code></div>
+        <p class="result">示例：RSI14 位于历史第 26 百分位，R = +24。振幅 6%，上限 4%，所以 E = 24 × 4 ÷ 6 = +16.00 分。</p>
+      </article>
+      <article id="group-f" data-scene>
+        <h3>F · 先算估值，再加盈利质量</h3>
+        <p>盈利收益率 EP、账面市值比 BP 和营收市值比 SP 的 Q 分先平均。ROE 衡量盈利质量，REVG 的历史百分位用来折扣正的估值分。</p>
+        <div class="formula"><code>V = [Q(EP) + Q(BP) + Q(SP)] ÷ 3<br>F = [Q(ROE) + V − max(V, 0) × Pₜ(REVG)] ÷ 2</code></div>
+        <p class="result" id="f-example">示例：V = (20 + 30 + 10) ÷ 3 = 20，Q(ROE) = 24，Pₜ(REVG) = 55%，所以 F = (24 + 20 − 11) ÷ 2 = +16.50 分。</p>
+        <p class="note">把下方的 ROE 缺失打开，F 会标记缺数据，该组贡献记 0。</p>
+      </article>
+      <article data-scene>
+        <h3>把六份贡献加到偏置上</h3>
+        <p class="result" id="total-example">50.00 + 6.75 − 2.00 − 1.00 + 0.50 + 1.60 + 3.30 = 59.15 分</p>
+        <p class="note">这里的分数用于比较买卖线。例子设为 58 分及以上进入买入区，45 分及以下进入卖出区，中间保持原仓位。</p>
+        <p><a href="#total">查看可操作的分数明细</a></p>
+      </article>
     </div>
-    <p class="formula">股票涨了 10 元，持有 300 股赚 3,000 元。扣除两笔费用共 20 元，账户实际增加 <strong>2,980 元</strong>，示例收益率约 <strong>2.71%</strong>。</p>
-    <p><strong>换一组权重会怎样？</strong> 如果从 A 挪 10 个百分点给 C，第 1 天收盘的 <code>S</code> 会从 <code>0.51</code> 变成 <code>0.37</code>。它落在保持原仓位区，账户原来是空仓，所以第 2 天仍是空仓。把每组候选权重固定在同一整段校准历史里，从同样的初始资金出发，分别跑完这套规则。MCTS 比较每组扣费后得到的日净值变化，首版用年化夏普给候选打分。</p>
   </section>
 
-  <section id="validation">
-    <h2>怎么判断选的系数好不好？</h2>
-    <ol>
-      <li><strong>训练段定方向。</strong> 收盘当日算因子。后续收益用 <code>t+2</code> 复权开盘价除以 <code>t+1</code> 复权开盘价再减 1。用过去已完整发生的收益计算各因子的 IC，避免用当天信号买到当天已结束的价格。</li>
-      <li><strong>校准段选组系数。</strong> 同一套因子公式、可评分日期和撮合规则下，用 MCTS 比较候选。首版只做多，买入区目标仓位 30%，卖出区减到 0，中间保留。信号最快在下一交易日开盘执行，无法成交时保留仓位。扣除佣金、卖出税费和滑点，按日净值计算年化夏普，空仓日也计入。夏普越高，候选在这段历史上的单位波动净收益越高。</li>
-      <li><strong>测试段只验证。</strong> 冻结因子方向、组系数和阈值，检查后续表现。可与待搜组平分剩余预算的方案、同档位的穷举结果作对照。三个分段按交易日顺序划分，首版用 60% / 20% / 20%。训练标签与校准持有期须在各自分段内结束。</li>
-    </ol>
-    <p><strong>窗口怎么验证。</strong> 首版固定 40 天，可以把 60 天和 90 天作为对照。在共同可评分的日期比较信号分布、±3 截断比例、越过动作阈值的频率和扣费后的策略表现，另报各窗口的可评分覆盖率。每个对照需重估因子方向和组权重，再冻结配置测样本外表现。</p>
-    <details>
-      <summary>查看实现时使用的夏普公式</summary>
-      <p><code>backtest_score = √252 × mean(日净组合收益) / std(日净组合收益, ddof=1)</code>，无风险利率取 0。有效收益不足两天或标准差为 0 时，该候选的夏普未定义。所有候选均未定义时，返回缺失分数并记录原因。</p>
-    </details>
-    <h3>参考了哪些论文公式？</h3>
-    <ul>
-      <li>AlphaGen §3.1 式 (4)–(5) 给出了先归一化再线性加权的做法。这一版改成按个股自己的历史标准化。<a href="https://arxiv.org/abs/2306.12964">AlphaGen</a></li>
-      <li>RiskMiner §3.1 式 (1) 用 Pearson IC 衡量因子与后续收益的关系，§4 用 MCTS 搜索表达式。我们的搜索对象是指定组合的系数。<a href="https://arxiv.org/abs/2402.07080">RiskMiner</a></li>
-      <li>AlphaForge 算法 2 用历史因子表现和线性模型合成信号。首版的组内等权、固定系数和动作阈值是本项目的设计。<a href="https://arxiv.org/abs/2406.18394">AlphaForge</a></li>
-    </ul>
+  <section class="panel" id="total">
+    <h2>动手改一个条件，看看总分往哪走</h2>
+    <div class="control-grid" id="scenario" hidden>
+      <div class="control"><label><input type="checkbox" id="low-volume"> 切换到缩量状态</label><span class="small muted" id="volume-label">VR = 1.20，放量</span></div>
+      <div class="control"><label><input type="checkbox" id="missing-roe"> 模拟 ROE 缺失</label><span class="small muted">当日 F 的贡献记 0</span></div>
+      <div class="control"><label for="bias">偏置 bias <output id="bias-value" for="bias">0.50</output></label><input id="bias" type="range" min="0.40" max="0.60" step="0.05" value="0.50"></div>
+    </div>
+    <div class="worksheet">
+      <div class="scroll"><table>
+        <thead><tr><th scope="col">组</th><th scope="col" class="numeric">组分</th><th scope="col" class="numeric">k</th><th scope="col" class="numeric">进总分</th></tr></thead>
+        <tbody>
+          <tr data-group="A"><th scope="row">A 动量</th><td class="numeric" data-points>+22.50</td><td class="numeric">0.30</td><td class="numeric" data-contribution>+6.75</td></tr>
+          <tr data-group="B"><th scope="row">B 波动</th><td class="numeric" data-points>−10.00</td><td class="numeric">0.20</td><td class="numeric" data-contribution>−2.00</td></tr>
+          <tr data-group="C"><th scope="row">C 流动性</th><td class="numeric" data-points>−10.00</td><td class="numeric">0.10</td><td class="numeric" data-contribution>−1.00</td></tr>
+          <tr data-group="D"><th scope="row">D 量价</th><td class="numeric" data-points>+5.00</td><td class="numeric">0.10</td><td class="numeric" data-contribution>+0.50</td></tr>
+          <tr data-group="E"><th scope="row">E 技术</th><td class="numeric" data-points>+16.00</td><td class="numeric">0.10</td><td class="numeric" data-contribution>+1.60</td></tr>
+          <tr data-group="F"><th scope="row">F 基本面</th><td class="numeric" data-points>+16.50</td><td class="numeric">0.20</td><td class="numeric" data-contribution>+3.30</td></tr>
+        </tbody>
+      </table></div>
+      <ul class="bars" aria-hidden="true">
+        <li data-bar="A"><span>A</span><span class="track"><span class="bar" style="--width:42.1875%"></span></span><span class="bar-value">+6.75</span></li>
+        <li data-bar="B"><span>B</span><span class="track"><span class="bar negative" style="--width:12.5%"></span></span><span class="bar-value">−2.00</span></li>
+        <li data-bar="C"><span>C</span><span class="track"><span class="bar negative" style="--width:6.25%"></span></span><span class="bar-value">−1.00</span></li>
+        <li data-bar="D"><span>D</span><span class="track"><span class="bar" style="--width:3.125%"></span></span><span class="bar-value">+0.50</span></li>
+        <li data-bar="E"><span>E</span><span class="track"><span class="bar" style="--width:10%"></span></span><span class="bar-value">+1.60</span></li>
+        <li data-bar="F"><span>F</span><span class="track"><span class="bar" style="--width:20.625%"></span></span><span class="bar-value">+3.30</span></li>
+      </ul>
+    </div>
+    <p class="result" id="worksheet-score" aria-live="polite">偏置 50.00 分 + 六组贡献 9.15 分 → 59.15 分 · 买入区</p>
+  </section>
+
+  <section class="panel" id="direction-search">
+    <h2>哪些数提前定，哪些数交给树？</h2>
+    <div class="overview">
+      <div><h3>训练段</h3><p>确定 A 的 IC 权重和 D 的方向。波动、下行波动、非流动性和振幅取训练段第 80 百分位作上限；换手和总市值取第 20 百分位作下限。σ* 对每日的 max(VOL20, VOL60) 取分位。七参数搜索前冻结这些值。</p></div>
+      <div><h3>校准段</h3><p>MCTS 只搜 <code>kA、kB、kC、kD、kE、kF、bias</code>。六个 k 用非负档位。七项若各五档，有 5⁷ = 78,125 个档位组合。用同一套买卖规则和成本评价完整路径。</p></div>
+    </div>
+    <p class="note">实际评分时，缺失组当日贡献记 0，保留缺失标记，其余 k 照原值计算。清晰可用且为零的波动、非流动性或振幅对应本项不超限。财务按公告可用日对齐；总市值用当日股价和当时可知、已生效的股本口径。</p>
+  </section>
+
+  <section class="panel" id="backtest">
+    <h2>分数怎样进回测？</h2>
+    <p>在 t 日收盘评分。触及买入线、卖出线后，下一交易日开盘按相同撮合与仓位规则执行；处于中间区就保持原仓位。账户扣除成本后计算净值，再用校准期年化夏普评价候选。</p>
+    <p id="prediction" class="note">涨跌预测保留逻辑回归和单隐藏层反向传播方案。它们使用相同的历史因子、收益标签及时间划分，单独输出上涨概率。<a href="05-因子权重计算方案.html#backprop">查看反向传播实验</a></p>
+  </section>
+  <section class="panel" id="basis">
+    <h2>公式从哪里来？</h2>
+    <p>D 组的 X 直接使用《AlphaJungle》表 7 第 6 个组合算子。其他组按动量与反转、波动目标、流动性、RSI 与价差风险、估值和盈利质量这些经济含义设计。阈值、扣分曲线和合成方式属于项目设定。<a href="https://arxiv.org/html/2505.11122v3">《AlphaJungle》原文</a></p>
+    <p>项目已有的 601868.SH 记录是单因子历史诊断。完整模型与组内消融的实证依据在论文草稿中单列。<a href="../papers/第x章-(草稿)因子选取与定义.txt">论文草稿第 3.5–3.7 节</a></p>
   </section>
 </main>
 <script>
 (() => {
-  const walkthrough = document.getElementById("walkthrough");
-  const controls = walkthrough.querySelector("[data-walk-controls]");
-  const steps = walkthrough.querySelector("[data-walk-steps]");
-  const scene = walkthrough.querySelector("[data-walk-scene]");
-  const count = walkthrough.querySelector("[data-walk-count]");
-  const play = walkthrough.querySelector("[data-play]");
-  const previous = walkthrough.querySelector("[data-prev]");
-  const next = walkthrough.querySelector("[data-next]");
-  const oldPrice = 100;
-  const newPrice = 110;
-  const momentum = Number(((newPrice / oldPrice - 1) * 100).toFixed(2));
-  const sum = (values) => values.reduce((total, value) => total + value, 0);
-  const pastMomentum = [-3, 3, 5, 11].map((value) => ({ value, days: 10 }));
-  const momentumHistory = pastMomentum.flatMap(({ value, days }) => Array(days).fill(value));
-  const historyDays = momentumHistory.length;
-  const historyTotal = sum(momentumHistory);
-  function historyStats(values) {
-    const mean = sum(values) / values.length;
-    const spread = Math.sqrt(sum(values.map((value) => (value - mean) ** 2)) / values.length);
-    return { mean, spread };
-  }
-  const { mean: momentumMean, spread: momentumSpread } = historyStats(momentumHistory);
-
-  // Each row gives the raw value, historical mean, standard deviation, direction, unit and display precision.
-  const groups = [
-    { id: "A", label: "动量与反转", example: "刚才用 110 元和 100 元算出了 MOM20 为 10%，其余三个动量或反转因子换用各自的回看天数。", factors: [
-      ["MOM20", momentum, momentumMean, momentumSpread, 1, "%", 0],
-      ["MOM60", 14, 5, 5, 1, "%", 0],
-      ["MOM120", 30, 8, 10, 1, "%", 0],
-      ["REV5", 4, 2, 5, -1, "%", 0]
-    ] },
-    { id: "B", label: "波动", example: "先算出过去 20 天每天的涨跌幅。这 20 个数的标准差是 1.30%，填入 VOL20。", factors: [
-      ["VOL20", 1.30, 1.50, 0.50, -1, "%", 2],
-      ["VOL60", 1.10, 1.40, 0.50, -1, "%", 2],
-      ["DVOL20", 0.90, 1.00, 0.50, -1, "%", 2]
-    ] },
-    { id: "C", label: "流动性与规模", example: "假设 20 天的日换手率相加为 60 个百分点，除以 20，TURN20 就是 3.0%。SIZE 是总市值换成元后取自然对数。", factors: [
-      ["TURN20", 3.0, 2.5, 1.0, -1, "%", 1],
-      ["AMIHUD20", 0.012, 0.010, 0.020, 1, "", 3],
-      ["SIZE", 23.30, 23.10, 1.00, -1, "", 2]
-    ] },
-    { id: "D", label: "量价形态", example: "每天看收盘价比成交均价高或低多少。假设 20 天的差幅相加为 12 个百分点，除以 20，INTRA20 就是 0.60%。", factors: [
-      ["INTRA20", 0.60, 0.30, 0.50, 1, "%", 2],
-      ["CORR20", 0.10, 0.20, 0.50, -1, "", 2],
-      ["VR", 1.05, 1.00, 0.50, 1, "", 2]
-    ] },
-    { id: "E", label: "技术指标", example: "假设 14 天的平均上涨幅度和平均下跌幅度之比是 53 比 47，按 RSI 的换算，RSI14 就是 53。", factors: [
-      ["RSI14", 53, 50, 10, -1, "", 0],
-      ["AMP20", 2.0, 2.5, 1.0, -1, "%", 1]
-    ] },
-    { id: "F", label: "基本面", example: "市盈率为 12.5 倍时，盈利收益率 EP 就是 1 除以 12.5，也就是 8%。EP、BP、SP、ROE、REVG 五个信号合成 F 组，再乘 F 的权重计入总分。", factors: [
-      ["EP", 8, 5, 2, 1, "%", 0],
-      ["BP", 0.40, 0.50, 0.20, 1, "", 2],
-      ["SP", 0.25, 0.20, 0.10, 1, "", 2],
-      ["ROE", 7.6, 10.0, 4.0, 1, "%", 1],
-      ["REVG", 8, 10, 5, 1, "%", 0]
-    ] }
-  ];
-  const signalsFor = (group) => group.factors.map(([, current, mean, deviation, direction]) => {
-    const z = Math.max(-3, Math.min(3, (current - mean) / deviation));
-    return { z, signal: z * direction };
-  });
-  const groupScore = (group) => sum(signalsFor(group).map(({ signal }) => signal)) / group.factors.length;
-  const scores = groups.map(groupScore);
-  const fixed = { B: 20, D: 25, E: 5, F: 10 };
-  const options = { A: 0.75, C: 0.25 };
-  const fixedTotal = sum(Object.values(fixed));
-  const remainder = 100 - fixedTotal;
-  const optionTotal = sum(Object.values(options));
-  const weights = groups.map(({ id }) => fixed[id] ?? remainder * options[id] / optionTotal);
-  const contributions = scores.map((score, index) => score * weights[index] / 100);
-  const signal = sum(contributions);
-  const shareOfPositiveRange = signal / 3;
-  const increase = shareOfPositiveRange * 50;
-  const finalScore = 50 + increase;
-  const tradeSignals = [signal, 0.10, -0.60];
-
-  function signed(value, digits = 2) {
-    return (value < 0 ? "−" : "+") + Math.abs(value).toFixed(digits);
-  }
-
-  function element(tag, text = "", className = "") {
-    const node = document.createElement(tag);
-    node.textContent = text;
-    if (className) node.className = className;
-    return node;
-  }
-
-  function reveal(node, delay) {
-    node.classList.add("walk-reveal");
-    node.style.setProperty("--delay", delay + "ms");
-    return node;
-  }
-
-  function message(text, delay = 0, emphasized = false) {
-    return reveal(element("p", text, emphasized ? "walk-total" : ""), delay);
-  }
-
-  function flow(lines) {
-    const list = element("ol", "", "walk-flow");
-    lines.forEach((line, index) => list.append(reveal(element("li", line), index * 250)));
-    return list;
-  }
-
-  function table(label, headings, rows) {
-    const wrapper = element("div", "", "table-wrap");
-    wrapper.tabIndex = 0;
-    wrapper.setAttribute("role", "region");
-    wrapper.setAttribute("aria-label", label);
-    const result = element("table");
-    const head = element("thead");
-    const titles = element("tr");
-    headings.forEach((heading) => {
-      const th = element("th", heading);
-      th.scope = "col";
-      titles.append(th);
-    });
-    head.append(titles);
-    const body = element("tbody");
-    rows.forEach(([name, ...cells], index) => {
-      const row = reveal(element("tr"), 200 + index * 260);
-      const th = element("th", name);
-      th.scope = "row";
-      row.append(th, ...cells.map((text) => element("td", text)));
-      body.append(row);
-    });
-    result.append(head, body);
-    wrapper.append(result);
-    return wrapper;
-  }
-
-  function showGroup(group, score) {
-    const signals = signalsFor(group);
-    const rows = group.factors.map(([name, current, mean, deviation, direction, unit, precision], row) => {
-      const value = (number) => number.toFixed(precision) + unit;
-      const spread = deviation.toFixed(precision) + (unit === "%" ? " 个百分点" : "");
-      const { z, signal } = signals[row];
-      return [
-        name,
-        value(current) + " / " + value(mean),
-        "相差 " + signed(current - mean, precision) + (unit === "%" ? " 个百分点" : "") + "，再除以 " + spread + " → " + signed(z),
-        direction === 1 ? "保持（× +1）" : "翻转（× −1）",
-        signed(signal)
-      ];
-    });
-    const details = table(group.id + " 组内因子计算", ["因子", "今天 / 平时均值", "跟平时比，再除以历史标准差", "训练定方向", "因子信号"], rows);
-    const resultCells = details.querySelectorAll("tbody td:last-child");
-    signals.forEach(({ signal }, row) => resultCells[row].classList.add(signal < 0 ? "walk-negative" : "walk-positive"));
-    const terms = signals.map(({ signal }) => signed(signal)).join("，");
-    return [
-      element("h3", group.id + " 组 · " + group.label),
-      element("p", group.example),
-      details,
-      message("把最后一列 " + terms + " 加起来，再除以 " + rows.length + "，得到 " + group.id + " 组分 " + signed(score) + "。", 550 + rows.length * 260, true)
-    ];
-  }
-
-  function showHistoricalMean() {
-    const rows = pastMomentum.map(({ value, days }) => [signed(value, 0) + "%", String(days), signed(value * days, 0) + " 个百分点"]);
-    return [
-      element("h3", "4% 的平时均值是怎么来的？"),
-      element("p", "取今天之前的 " + historyDays + " 个交易观测。每一天都先算那一天自己的 20 日涨跌幅。为了方便看，示例把相同的涨跌幅放在一起。"),
-      table("过去 40 天的 MOM20 示例", ["那天的 20 日涨跌幅", "出现天数", "加进总和"], rows),
-      message("把右边加起来是 " + historyTotal + " 个百分点。除以 " + historyDays + " 天，平时均值是 " + momentumMean + "%。", 1350, true)
-    ];
-  }
-
-  function showStandardization() {
-    const difference = momentum - momentumMean;
-    return [
-      element("h3", "减均值、除标准差，到底在干什么？"),
-      flow([
-        "先看差了多少。今天 " + momentum + "%，平时 " + momentumMean + "%，所以高了 " + difference + " 个百分点。",
-        "再看这个差距有多大。过去 " + historyDays + " 天算出的标准差是 " + momentumSpread + " 个百分点，把它当作一格。",
-        "今天高了 " + difference + " 个百分点，也就是 " + difference + " ÷ " + momentumSpread + " = " + signed(difference / momentumSpread, 1) + " 格。"
-      ]),
-      message("如果平时一格是 10 个百分点，同样高出 6 个百分点，就只高了 0.6 格。", 950, true),
-      message("这就是今天离平时有多远。它还只是一个因子的读数，之后还要确定方向、合并各组，才知道是否买卖。", 1350)
-    ];
-  }
-
-  function showWeights() {
-    const bar = element("div", "", "walk-weight");
-    bar.setAttribute("aria-hidden", "true");
-    for (const [name, weight] of [["fixed", fixedTotal], ["a", weights[0]], ["c", weights[2]]]) {
-      const segment = element("span", "", "walk-" + name + " walk-grow");
-      segment.style.setProperty("--percent", weight);
-      segment.style.setProperty("--delay", name === "fixed" ? "0ms" : "550ms");
-      bar.append(segment);
-    }
-    return [
-      element("h3", "MCTS 只给 A 和 C 分剩余权重"),
-      flow([
-        "B 固定 " + fixed.B + "%，D 固定 " + fixed.D + "%，E 固定 " + fixed.E + "%，F 固定 " + fixed.F + "%，已经用了 " + fixedTotal + "%。",
-        "A、C 共分剩下的 " + remainder + "%。这一条候选路径给 A 选 0.75 档、C 选 0.25 档，相当于按 3 比 1 分。",
-        "所以 A 最终占 " + weights[0] + "%，C 最终占 " + weights[2] + "%。其余四组仍参与总分。"
-      ]),
-      bar,
-      message("这是一组候选权重。实际采用哪组，由校准段回测比较。", 850)
-    ];
-  }
-
-  function showContributions() {
-    let subtotal = 0;
-    const rows = groups.map(({ id }, index) => {
-      const contribution = contributions[index];
-      subtotal += contribution;
-      return [id + " 组", signed(scores[index]), weights[index] + "%", signed(contribution, 3), signed(subtotal, 3)];
-    });
-    return [
-      element("h3", "每组用自己的组分乘自己的权重"),
-      table("各组权重、贡献与累计信号", ["组", "组分", "最终权重", "这一组贡献", "加到这里"], rows),
-      message("C 组扣分，F 组加分。六组加完，综合信号是 " + signed(signal) + "。", 2050, true)
-    ];
-  }
-
-  function showFinalScore() {
-    const gauge = element("div", "", "walk-gauge");
-    gauge.setAttribute("aria-hidden", "true");
-    const marker = element("span", "", "walk-grow");
-    marker.style.setProperty("--increase", increase.toFixed(2) + "%");
-    marker.style.setProperty("--delay", "700ms");
-    gauge.append(marker);
-    const axis = element("div", "", "walk-axis");
-    axis.append(element("span", "0 分"), element("span", "50 分 · 中性"), element("span", "100 分"));
-    return [
-      element("h3", "把综合信号换成 0 到 100 分"),
-      flow([
-        "综合信号 0 对应 50 分，正方向的上限 +3 对应 100 分。",
-        "这次 " + signed(signal) + " 占正方向上限的 " + (shareOfPositiveRange * 100).toFixed(0) + "%。",
-        "50 到 100 有 50 分，取其中 " + (shareOfPositiveRange * 100).toFixed(0) + "%，就是加 " + increase.toFixed(2) + " 分。"
-      ]),
-      gauge,
-      axis,
-      message("从 50 分起步，加 " + increase.toFixed(2) + " 分，得到 " + finalScore.toFixed(2) + " 分。", 1200, true),
-      message("这表示今天的正向贡献更强。综合信号越过了买入区阈值 0.5，实际建议还要看持仓和风控。", 1550)
-    ];
-  }
-
-  function showWindowSensitivity() {
-    const long = historyStats([...Array(10).fill(11), ...Array(10).fill(15), ...momentumHistory]);
-    const originalFactor = signalsFor(groups[0])[0].signal;
-    const longFactor = Math.max(-3, Math.min(3, (momentum - long.mean) / long.spread));
-    const longGroup = scores[0] + (longFactor - originalFactor) / groups[0].factors.length;
-    const longSignal = signal + (longGroup - scores[0]) * weights[0] / 100;
-    const longScore = 50 + 50 / 3 * longSignal;
-    return [
-      element("h3", "同一个 10%，为什么换个窗口就变分了？"),
-      element("p", "沿用 40 天的均值算例，再往前补 20 天作为对照。更早的 20 天里，10 天的 MOM20 为 +11%，另 10 天为 +15%。今天仍是 +10%。"),
-      table("40 天与 60 天的标准化结果和个股分数", ["看哪项", "首版 40 天", "对照 60 天"], [
-        ["MOM20 历史均值", momentumMean.toFixed(2) + "%", long.mean.toFixed(2) + "%"],
-        ["MOM20 历史标准差", momentumSpread.toFixed(2) + " 个百分点", long.spread.toFixed(2) + " 个百分点"],
-        ["MOM20 信号", signed(originalFactor), signed(longFactor)],
-        ["A 组分", signed(scores[0]), signed(longGroup)],
-        ["综合信号", signed(signal, 3), signed(longSignal, 3)],
-        ["个股分数", finalScore.toFixed(2) + " 分", longScore.toFixed(2) + " 分"]
-      ]),
-      message("这里只换 MOM20 的基准窗口，权重和其他因子都固定。综合信号从 " + signed(signal, 3) + " 降到 " + signed(longSignal, 3) + "，从买入区回到保持原仓位区。正式换窗口时，需要重新校准并检验。", 1750, true)
-    ];
-  }
-
-  function showTradingDecisions() {
-    return [
-      element("h3", "每天晚上做决定，第二天开盘再成交"),
-      table("综合信号、触发规则和次日动作", ["晚上算出的综合信号", "跟哪条线比", "次日动作"], [
-        [signed(tradeSignals[0]), "达到 +0.5", "当前没股，计划买到可达到的 30% 仓位"],
-        [signed(tradeSignals[1]), "介于 −0.5 和 +0.5", "手里有股就继续持有，手里没股就继续空仓"],
-        [signed(tradeSignals[2]), "达到 −0.5 或更低", "当前有股，计划全部卖出"]
-      ]),
-      message("下一步才看开盘价能买多少股、卖出后到账多少。", 1150, true)
-    ];
-  }
-
-  function showBaseCoefficient() {
-    // 沿用前面的权重调整算例，从 A 挪 10 个百分点给 C，得到原始信号 0.37。
-    const shiftedSignal = signal + 0.10 * (scores[2] - scores[0]);
-    const factorPoints = (50 / 3) * shiftedSignal;
-    const buyLine = 50 + (50 / 3) * 0.5;
-    const sellLine = 50 - (50 / 3) * 0.5;
-    const coefficients = [0.92, 0.96, 1, 1.04, 1.08];
-    const rows = coefficients.map((coefficient) => {
-      const baseScore = 50 * coefficient;
-      const outputScore = Math.max(0, Math.min(100, baseScore + factorPoints));
-      const action = outputScore >= buyLine ? "买入区" : outputScore <= sellLine ? "卖出区" : "保持原仓位";
-      return [coefficient.toFixed(2), baseScore.toFixed(2), signed(factorPoints), outputScore.toFixed(2), action];
-    });
-    return [
-      element("h3", "让 MCTS 给 50 选一个系数"),
-      table("基准分系数从 0.92 到 1.08 时的决策", ["系数 k", "50 × k", "因子贡献", "最终输出分", "次日动作"], rows),
-      message("MCTS 选的系数只乘 50。因子贡献还是 " + signed(factorPoints) + " 分，最终分达到约 " + buyLine.toFixed(2) + " 分才进入买入区。", 1600, true)
-    ];
-  }
-
-  function showTradeBacktest() {
-    const startingCash = 110000;
-    const fee = 10;
-    const lotSize = 100;
-    const targetExposure = 0.30;
-    const formatMoney = (value) => value.toLocaleString("en-US") + " 元";
-    const opens = [100, 105, 110];
-    let cash = startingCash;
-    let shares = 0;
-    const rows = tradeSignals.map((closeSignal, index) => {
-      const price = opens[index];
-      let action = shares > 0 ? "继续持有" : "保持空仓";
-      if (closeSignal >= 0.5) {
-        const equity = cash + shares * price;
-        const budget = Math.min(cash - fee, (equity - fee) * targetExposure - shares * price);
-        const quantity = Math.max(0, Math.floor(budget / (lotSize * price)) * lotSize);
-        if (quantity > 0) {
-          cash -= quantity * price + fee;
-          shares += quantity;
-          action = "买 " + quantity + " 股";
-        }
-      } else if (closeSignal <= -0.5 && shares > 0) {
-        action = "卖 " + shares + " 股";
-        cash += shares * price - fee;
-        shares = 0;
-      }
-      return [
-        "第 " + (index + 1) + " 天 · " + signed(closeSignal),
-        "第 " + (index + 2) + " 天 · " + formatMoney(price),
-        action, formatMoney(cash), String(shares), formatMoney(cash + shares * price)
-      ];
-    });
-    const profit = cash - startingCash;
-    return [
-      element("h3", "同一组权重，跑出三天的账户流水"),
-      element("p", "晚上先算信号，第二天开盘才动钱。从 " + formatMoney(startingCash) + " 和 0 股开始，每次成交扣 " + formatMoney(fee) + "。"),
-      table("回测成交和账户净值", ["前一晚信号", "次日开盘价", "动作", "现金", "股数", "净值"], rows),
-      message("扣费后，账户多了 " + formatMoney(profit) + "。换一组权重，会跑出另一条净值。MCTS 比较的是整段校准期的净值表现。", 1400, true)
-    ];
-  }
-
-  const scenes = [
-    { label: "起点", render: () => [
-      element("h3", "一天的股价怎样变成一个因子值"),
-      flow([
-        "20 个交易观测前，这只股票复权收盘 " + oldPrice + " 元。今天收盘 " + newPrice + " 元。",
-        "每 100 元涨了 " + (newPrice - oldPrice) + " 元，涨幅是 " + momentum + "%。这就是今天的 MOM20。",
-        "下一步先看这只股票平时的 20 日涨跌幅是多少。"
-      ])
-    ] },
-    { label: "算平时均值", render: showHistoricalMean },
-    { label: "为什么要除", render: showStandardization },
-    ...groups.map((group, index) => ({ label: group.id + " 组", render: () => showGroup(group, scores[index]) })),
-    { label: "分权重", render: showWeights },
-    { label: "加贡献", render: showContributions },
-    { label: "出总分", render: showFinalScore },
-    { label: "怎么看买卖", render: showTradingDecisions },
-    { label: "试 50 × k", render: showBaseCoefficient },
-    { label: "买卖回测", render: showTradeBacktest },
-    { label: "比较窗口", render: showWindowSensitivity }
-  ];
-
-  let current = 0;
+  // 动画在同一个页面逐步揭示组内公式。没有 JavaScript 时，算例仍可阅读。
+  const byId = (id) => document.getElementById(id);
+  const scenes = [...document.querySelectorAll('[data-scene]')];
+  const stepButtons = [...document.querySelectorAll('[data-step]')];
+  let currentStep = 0;
   let timer = null;
-  const stepButtons = scenes.map(({ label }, index) => {
-    const button = element("button", label);
-    button.type = "button";
-    button.addEventListener("click", () => { stop(); show(index); });
-    return button;
-  });
-  steps.append(...stepButtons);
+  const play = byId('play');
 
-  function updateControls() {
-    previous.disabled = current === 0;
-    next.disabled = current === scenes.length - 1;
-    play.textContent = timer !== null ? "暂停" : next.disabled ? "重播" : "播放";
-    count.textContent = "第 " + (current + 1) + " 步，共 " + scenes.length + " 步";
-    stepButtons.forEach((button, index) => {
-      if (index === current) button.setAttribute("aria-current", "step");
-      else button.removeAttribute("aria-current");
-    });
-  }
-
-  function stop() {
-    window.clearInterval(timer);
+  function pause() {
+    clearInterval(timer);
     timer = null;
-    updateControls();
+    play.textContent = '播放';
+    play.setAttribute('aria-pressed', 'false');
   }
 
-  function show(index, animate = true) {
-    current = index;
-    scene.classList.toggle("walk-run", animate);
-    scene.replaceChildren(...scenes[index].render());
-    updateControls();
+  function showStep(index, animate = true) {
+    currentStep = index;
+    scenes.forEach((scene, i) => {
+      scene.hidden = i !== index;
+      scene.classList.toggle('enter', animate && i === index);
+    });
+    stepButtons.forEach((button, i) => {
+      if (i === index) button.setAttribute('aria-current', 'step');
+      else button.removeAttribute('aria-current');
+    });
+    byId('previous').disabled = index === 0;
+    byId('next').disabled = index === scenes.length - 1;
+    byId('step-counter').textContent = `第 ${index + 1} / ${scenes.length} 步`;
+    if (index === scenes.length - 1) pause();
   }
 
-  previous.addEventListener("click", () => { stop(); show(current - 1); });
-  next.addEventListener("click", () => { stop(); show(current + 1); });
-  play.addEventListener("click", () => {
-    if (timer !== null) {
-      stop();
-      return;
-    }
-    if (current === scenes.length - 1) show(0);
-    timer = window.setInterval(() => {
-      show(current + 1);
-      if (current === scenes.length - 1) stop();
-    }, 8500);
-    updateControls();
+  stepButtons.forEach((button, index) => button.addEventListener('click', () => {
+    pause();
+    showStep(index);
+  }));
+  byId('previous').addEventListener('click', () => { pause(); showStep(currentStep - 1); });
+  byId('next').addEventListener('click', () => { pause(); showStep(currentStep + 1); });
+  play.addEventListener('click', () => {
+    if (timer !== null) { pause(); return; }
+    if (currentStep === scenes.length - 1) showStep(0);
+    play.textContent = '暂停';
+    play.setAttribute('aria-pressed', 'true');
+    timer = setInterval(() => showStep(currentStep + 1), 4200);
   });
 
-  show(0, false);
-  controls.hidden = false;
+  // 交互只改三个演示输入。组分明细、条形图和总分由同一份结果更新。
+  const coefficients = { A: 0.30, B: 0.20, C: 0.10, D: 0.10, E: 0.10, F: 0.20 };
+  const aPoints = -0.50 * -30 - 0.25 * 10 + 0.25 * 40;
+  const bPoints = -50 * (1 - Math.min(1, 24 / Math.max(30, 20), 12 / 15));
+  const cPoints = -50 * (1 - Math.min(1, 1.2 / 1.5, 0.036 / 0.04, 120 / 100));
+  const ePoints = 24 * Math.min(1, 4 / 6);
+  const valuation = (20 + 30 + 10) / 3;
+  const fPoints = (24 + valuation - Math.max(valuation, 0) * 0.55) / 2;
+  const fmt = (number) => Math.abs(number).toFixed(2);
+  const signed = (number) => (number < 0 ? '−' : number > 0 ? '+' : '') + fmt(number);
+
+  function calculate() {
+    const lowVolume = byId('low-volume').checked;
+    const missingRoe = byId('missing-roe').checked;
+    const bias = Number(byId('bias').value);
+    const intradaySign = lowVolume ? -1 : 1;
+    const groupPoints = { A: aPoints, B: bPoints, C: cPoints,
+      D: 0.5 * intradaySign * 20 - 0.5 * 10, E: ePoints, F: missingRoe ? null : fPoints };
+    const contributions = [];
+
+    for (const [group, points] of Object.entries(groupPoints)) {
+      const contribution = (points ?? 0) * coefficients[group];
+      contributions.push(contribution);
+      const row = document.querySelector(`[data-group="${group}"]`);
+      const chart = document.querySelector(`[data-bar="${group}"]`);
+      row.querySelector('[data-points]').textContent = points === null ? '缺数据' : signed(points);
+      row.querySelector('[data-contribution]').textContent = signed(contribution);
+      const bar = chart.querySelector('.bar');
+      bar.style.setProperty('--width', `${Math.min(50, Math.abs(contribution) * 6.25)}%`);
+      bar.classList.toggle('negative', contribution < 0);
+      chart.querySelector('.bar-value').textContent = signed(contribution);
+    }
+
+    const sum = contributions.reduce((total, contribution) => total + contribution, 0);
+    const rawScore = 100 * bias + sum;
+    const displayScore = Math.max(0, Math.min(100, rawScore));
+    const action = rawScore >= 58 ? '买入区' : rawScore <= 45 ? '卖出区' : '保持原仓位';
+    byId('volume-label').textContent = lowVolume ? 'VR = 0.80，缩量' : 'VR = 1.20，放量';
+    byId('bias-value').value = bias.toFixed(2);
+    byId('score').value = fmt(displayScore);
+    byId('meter-fill').style.width = `${displayScore}%`;
+    byId('action').textContent = action;
+    byId('worksheet-score').textContent = `偏置 ${fmt(100 * bias)} 分 ${sum < 0 ? '−' : '+'} 六组贡献 ${fmt(sum)} 分 → ${fmt(displayScore)} 分 · ${action}`;
+    byId('total-example').textContent = `${fmt(100 * bias)} ${contributions.map((value) => `${value < 0 ? '−' : '+'} ${fmt(value)}`).join(' ')} = ${fmt(rawScore)} 分`;
+    byId('d-example').textContent = `示例${lowVolume ? '缩量' : '放量'}：0.5 × (${lowVolume ? '−1' : '+1'}) × 20 + 0.5 × (−1) × 10 = ${signed(groupPoints.D)} 分。`;
+    byId('f-example').textContent = missingRoe
+      ? '示例：ROE 缺失，F 组标记缺数据。进入总分的 F 组贡献是 0。'
+      : '示例：V = (20 + 30 + 10) ÷ 3 = 20，Q(ROE) = 24，Pₜ(REVG) = 55%，所以 F = (24 + 20 − 11) ÷ 2 = +16.50 分。';
+  }
+
+  ['low-volume', 'missing-roe', 'bias'].forEach((id) => byId(id).addEventListener('input', calculate));
+  byId('walk-controls').hidden = false;
+  byId('scenario').hidden = false;
+  function showLinkedScene() {
+    const index = scenes.findIndex((scene) => scene.id && `#${scene.id}` === location.hash);
+    if (index >= 0) {
+      pause();
+      showStep(index);
+    }
+  }
+  window.addEventListener('hashchange', showLinkedScene);
+  showStep(0, false);
+  showLinkedScene();
+  calculate();
 })();
 </script>
 </body>

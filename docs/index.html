@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>个股评分项目文档</title>
+  <style>
+    :root { color-scheme: light; --ink: #192c25; --green: #195a41; --line: #cfd9ce; --muted: #4e6459; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: #f6f5ed; font: 16px/1.7 "Microsoft YaHei", "PingFang SC", sans-serif; }
+    main { max-width: 970px; margin: auto; padding: 28px clamp(16px, 5vw, 46px) 54px; }
+    h1 { font-size: clamp(30px, 5.5vw, 49px); line-height: 1.2; margin: 0; }
+    h2 { margin: 25px 0 10px; font-size: 22px; }
+    p { margin: 7px 0 0; }
+    a { color: var(--green); text-underline-offset: .2em; }
+    .primary { display: block; margin-top: 23px; padding: 17px 20px; border-radius: 13px; background: #18392e; color: #fffef9; }
+    .primary a { color: #e1edb9; font-size: 21px; font-weight: 650; }
+    .grid { display: grid; gap: 9px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    article { padding: 12px 15px; border: 1px solid var(--line); border-radius: 10px; background: #fffef9; }
+    article a { font-weight: 650; }
+    article p { color: var(--muted); font-size: 14px; }
+    li + li { margin-top: 5px; }
+    @media (max-width: 620px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>个股评分项目文档</h1>
+  <div class="primary">
+    <a href="project-docs/03-个股评分与MCTS系数搜索.html">从 20 个因子算出总分</a>
+    <p>跟着算例看 A–F 六组怎样得分，切换量比和缺失条件，查看分数怎样变化。</p>
+  </div>
+  <h2>项目手册</h2>
+  <div class="grid">
+    <article><a href="project-docs/02-因子定义与公式.html">原始因子定义</a><p>每个因子用什么字段、怎么算、单位是什么。</p></article>
+    <article><a href="project-docs/05-因子权重计算方案.html">IC、回测与反向传播</a><p>收益标签、七参数搜索、概率模型和样本外对照。</p></article>
+    <article><a href="project-docs/04-个股因子检索工具.html">个股因子检索工具</a><p>如何查询快照，在哪里核对原始行情、财务字段和缓存。</p></article>
+    <article><a href="project-docs/01-数据获取与存储设计.html">数据获取与存储设计</a><p>历史数据、缺口更新、快照与数据表设计。</p></article>
+  </div>
+  <h2>论文与开发记录</h2>
+  <ul>
+    <li><a href="papers/第x章-(草稿)因子选取与定义.txt">论文第三章草稿</a> · 因子定义、单股先导结果、公式与文献依据</li>
+    <li><a href="journal/2026-11/2026-11-24.md">11 月 24 日开发日志</a></li>
+    <li><a href="journal/2026-11/2026-11-23.md">11 月 23 日开发日志</a></li>
+    <li><a href="journal/2026-11/2026-11-22.md">11 月 22 日开发日志</a></li>
+  </ul>
+</main>
+</body>
+</html>
