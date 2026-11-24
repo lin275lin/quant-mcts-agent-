@@ -1,113 +1,145 @@
-"""单股因子工具的公开入口。
-
-第一次读代码可以先找下面的 fetch_stock_factor_vector 函数。
-它安排取数据的顺序，并把取到的结果拼起来。接口请求在 _sources.py，因子公式在 _helpers.py。
-以 # 开头的是注释，三引号中的说明叫文档字符串，两者都可以用来了解代码。
-"""
-
-# 类型标注用来帮助阅读代码。这个导入让 Python 先保留标注，等需要时再解释。
+"""单股因子工具的公开入口，负责取数据、计算和组装结果。"""
 from __future__ import annotations
-
-# import 表示借用已经写好的代码。下面三个工具分别负责并行、日期和类型标注。
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from typing import Any
-
-# if 开头是一条判断。缩进到 if 下面的语句，只有判断成立才运行。
-# __package__ 由 Python 设置。直接运行这个文件时，它通常是空的。
+# 同时支持在项目中导入和从任意工作目录直接运行此文件。
 if not __package__:
-    import sys
     from pathlib import Path
-
-    # __file__ 是这个文件的路径。parents[2] 往上找到 Project 目录。
-    # sys.path 是 Python 查模块的目录列表，insert(0, ...) 把 Project 放到最前面。
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from tools.fetch_stock_factors import _helpers, _sources, _symbols
 else:
-    # 如果这是被别处导入的模块，点号 . 表示从当前包中导入同目录的模块。
     from . import _helpers, _sources, _symbols
-
-# 因子的名字和顺序由 config.py 统一定义，其他模块可以按同一顺序读列表。
-from config import FACTOR_NAMES
-
-
-# def 定义一个函数，括号中是调用者传给它的参数。
-# 参数的冒号后面是类型提示，= None 表示可以不传这个参数。
-# str | None 表示可以是字符串或空值，-> 右边提示返回什么类型。
+from config import FACTOR_LABELS, FACTOR_NAMES
 def fetch_stock_factor_vector(
     symbol: str,
     data_end_date: str | None = None,
+    *,
+    include_daily_history: bool = False,
 ) -> dict[str, Any]:
     """返回单股最近可用日的 20 个原始因子。
 
-    接受股票代码、带交易所的代码或精确股票名称。指定截止日会限制日线，
-    市值与财务仍是各自数据源的最新快照。
+    接受股票代码、带交易所的代码或精确股票名称。截止日用于日线和随日线
+    返回的估值。总市值和财务取各自数据源的最新快照。metadata 提供核对所需的
+    日期和原始值，include_daily_history=True 时额外返回整段原始日线。
     """
-    # “A if 条件 else B”表示条件成立选 A，否则选 B，这里二选一得到截止日期。
+    # 1. 把截止日字符串转为日期，未填时使用今天。
     end = date.fromisoformat(data_end_date) if data_end_date else date.today()
-    # _resolve() 把不同写法统一成类似 600519.SH 的格式。
+    # 2. 将输入统一成 600519.SH 这种写法。市值接口只需要点号前的部分。
     standard_symbol = _symbols._resolve(symbol)
-    # split(".") 在点号处分开，左边给 code，右边给 _。这里的 _ 表示后面不用它。
     code, _ = standard_symbol.split(".")
 
-    # ThreadPoolExecutor 可以让两个工作线程同时等待网络。
-    # with 管理这些线程的生命周期，离开缩进范围时会收尾。
+    # 3. submit() 让市值和财务在后台开始查询，当前线程同时取日线与估值。
     with ThreadPoolExecutor(max_workers=2, thread_name_prefix="stock-factors") as workers:
-        # submit(函数, 参数) 安排在线程里调用它，先返回一个等结果的凭据 Future。
-        size_future = workers.submit(_sources._fetch_size, code)
-        financial_future = workers.submit(_sources._fetch_financial_factors, standard_symbol)
-        # 当前线程同时去取 BaoStock 日线。辅助函数一次返回日线表和当天估值两个结果。
-        bars, valuations = _sources._fetch_daily_bars(standard_symbol, end)
-        price_factors = _helpers._compute_price_factors(bars)
-        # 转成 {因子名称: 数值} 的字典。update() 把另一份字典中的项目合并进来。
-        factors = price_factors.to_dict()
-        factors.update(_helpers._valuation_factors(valuations))
-        # result() 真正拿到线程计算的结果。如果线程还没完成，这里会等它。
-        factors["SIZE"] = size_future.result()
-        factors.update(financial_future.result())
+        market_cap_future = workers.submit(_sources._fetch_market_cap, code)
+        financial_future = workers.submit(_sources._fetch_financial_indicators, standard_symbol)
+        bars, daily, daily_history = _sources._fetch_daily_bars(standard_symbol, end)
 
-    # 这是字典推导式，相当于按 FACTOR_NAMES 循环，把每个名称和数值写入新字典。
-    # .get(name) 找不到该名称时会返回 None，因子仍然有自己的位置。
+        # 4. 用日线表计算价量因子，再合并估值、市值和财务。result() 等待查询结果。
+        price_factors = _helpers._compute_price_factors(bars)
+        factors = price_factors.to_dict()
+        factors.update(_helpers._valuation_factors(daily["latest"]))
+        market_cap = market_cap_future.result()
+        financial = financial_future.result()
+        factors["SIZE"] = _helpers._size_factor(market_cap["value_100m_cny"])
+        factors.update(_helpers._financial_factors(financial["ROEJQ"], financial["TOTALOPERATEREVETZ"]))
+
+    # 5. 字典和列表统一按配置顺序输出，缺失字段保留 None。
+    trading_day = price_factors.name.date()
     vector = {name: factors.get(name) for name in FACTOR_NAMES}
-    # return 把结果交还给调用函数的人。下面每一行都是一个“名字: 内容”。
-    return {
+    result = {
         "success": True,
         "symbol": standard_symbol,
-        # pandas 用日期给结果行命名。这里把日期转成 YYYY-MM-DD 格式的字符串。
-        "data_date": price_factors.name.date().isoformat(),
+        "data_date": trading_day.isoformat(),
         "vector": vector,
-        # values() 只拿数值。list() 把它们装成按因子顺序排列的列表。
         "vector_values": list(vector.values()),
-        # copy() 返回一份名单副本，外部改这份副本时不会改到全局配置。
         "factor_names": FACTOR_NAMES.copy(),
+        "metadata": {"daily": daily, "market_cap": market_cap, "financial": financial},
     }
+    # 日线已经查过，选择显示整段历史时直接交回接口原有的字段和行。
+    if include_daily_history:
+        result["daily_history"] = daily_history
+    return result
 
 
-# 只有直接运行这个 .py 文件时，__name__ 才是 "__main__"，下方打印代码才会执行。
+def _print_source_metadata(result: dict[str, Any]) -> None:
+    """按数据源打印原始指标，方便拿着日期、单位和字段名去对照。"""
+
+    def show(value: Any) -> str:
+        # 只能用 is None 判断缺失，否则 0 也会被当成空值。
+        return "NULL" if value is None else str(value)
+
+    metadata = result["metadata"]
+    daily = metadata["daily"]
+    latest = daily["latest"]
+    print(f"\n核对用原始数据（{result['symbol']}）")
+    print(
+        f"  {daily['source']} 日线（{daily['adjustment']}）"
+        f"  请求 {daily['requested_start']} 至 {daily['requested_end']}"
+    )
+    print(f"    实际返回 {daily['first_date']} 至 {latest['date']}，共 {daily['row_count']} 条")
+    print(f"    价量因子日期 {result['data_date']}，下列行情和估值日期 {latest['date']}")
+    for field, label, unit in (
+        ("open", "开盘价", "元"), ("high", "最高价", "元"),
+        ("low", "最低价", "元"), ("close", "收盘价", "元"),
+        ("volume", "成交量", "股"), ("amount", "成交额", "元"),
+        ("turn", "换手率", "%"),
+        ("peTTM", "滚动市盈率", "倍"), ("pbMRQ", "市净率（最近报告期）", "倍"),
+        ("psTTM", "滚动市销率", "倍"),
+    ):
+        print(f"    {label}（{field}，单位 {unit}） = {show(latest[field])}")
+
+    market_cap = metadata["market_cap"]
+    print(f"  {market_cap['source']}  市值日期 {show(market_cap['date'])}")
+    print(f"    总市值（value，单位 亿元） = {show(market_cap['value_100m_cny'])}")
+
+    financial = metadata["financial"]
+    print(
+        f"  {financial['source']}  报告期 {show(financial['report_date'])}"
+        f"  公告日 {show(financial['announcement_date'])}"
+    )
+    print(f"    加权净资产收益率（ROEJQ，单位 %） = {show(financial['ROEJQ'])}")
+    print(f"    营业收入同比（TOTALOPERATEREVETZ，单位 %） = {show(financial['TOTALOPERATEREVETZ'])}")
+
+
 if __name__ == "__main__":
     import argparse
+    import csv
     import json
     from math import isfinite
 
-    # argparse 负责读终端输入。nargs="?" 表示股票参数可以省略，default 给出默认值。
     parser = argparse.ArgumentParser(description="查询单股原始因子")
-    parser.add_argument("symbol", nargs="?", default="600519", help="股票代码或精确名称")
+    parser.add_argument("symbols", nargs="*", default=["601868"], help="一个或多个股票代码或精确名称")
     parser.add_argument("--end-date", help="日线截止日，格式 YYYY-MM-DD")
-    # 解析后的参数可以用 args.symbol 和 args.end_date 访问。
+    parser.add_argument("--raw-daily", action="store_true", help="额外打印计算用的整段 BaoStock 原始日线（CSV 格式）")
     args = parser.parse_args()
-    result = fetch_stock_factor_vector(args.symbol, args.end_date)
-    # dumps() 把 Python 字典变成 JSON 文本。indent=2 让输出缩进，方便在终端阅读。
-    print(json.dumps({
-        "success": result["success"],
-        "symbol": result["symbol"],
-        "data_date": result["data_date"],
-        "factor_count": len(result["vector_values"]),
-    }, ensure_ascii=False, indent=2))
-    # \n 是换行。items() 同时交出字典中每一项的名称和数值。
-    print("\n20 因子向量（按 FACTOR_NAMES 顺序）:")
-    for name, value in result["vector"].items():
-        # f 字符串会把花括号里的结果填进文本。>10.4f 表示保留 4 位小数并右对齐。
-        # 缺失值和无穷等非有限数显示为 NULL。
-        display = f"{value:>10.4f}" if value is not None and isfinite(value) else "      NULL"
-        # <14 表示因子名在至少 14 个字符的宽度里左对齐。
-        print(f"  {name:<14} {display}")
+    # 支持一次传入多个代码，依次打印每只股票的结果。
+    for symbol in args.symbols:
+        result = fetch_stock_factor_vector(symbol, args.end_date, include_daily_history=args.raw_daily)
+        # 20 是字段总数。单独统计空值和非有限数，让终端一眼能看出取到了几项。
+        missing_factors = [
+            name for name, value in result["vector"].items()
+            if value is None or not isfinite(value)
+        ]
+        print(json.dumps({
+            "success": result["success"],
+            "symbol": result["symbol"],
+            "data_date": result["data_date"],
+            "factor_count": len(result["vector_values"]),
+            "valid_factor_count": len(result["vector_values"]) - len(missing_factors),
+            "missing_factors": missing_factors,
+        }, ensure_ascii=False, indent=2))
+        print("\n20 因子向量（英文缩写 / 数值 / 中文指标）")
+        for name, value in result["vector"].items():
+            # 数值保留四位小数。缺失时显示 NULL，这一行仍会打印对应的中文名称。
+            display = "NULL" if name in missing_factors else f"{value:.4f}"
+            print(f"  {name:<9} {display:>10}  {FACTOR_LABELS[name]}")
+
+        _print_source_metadata(result)
+        if args.raw_daily:
+            print(f"\n{result['symbol']} BaoStock 原始日线（CSV）")
+            history = result["daily_history"]
+            writer = csv.writer(sys.stdout, lineterminator="\n")
+            writer.writerow(history["fields"])
+            writer.writerows(history["rows"])

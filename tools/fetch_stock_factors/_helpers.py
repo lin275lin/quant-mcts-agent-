@@ -114,11 +114,25 @@ def _finite_float(value: Any) -> float | None:
 
 
 def _valuation_factors(valuations: dict[str, float | None]) -> dict[str, float | None]:
-    """EP、BP、SP 随日线返回，仅对有效的正估值倍数取倒数。"""
+    """用有效且非零的估值倍数计算 EP、BP、SP，保留原来的正负号。"""
     factors = {}
     # zip() 按位置把两列名字配对，比如 EP 对 peTTM。for 每次拿出一对。
     for name, column in zip(("EP", "BP", "SP"), _VALUATION_COLUMNS):
-        value = valuations[column]
-        # 先确认有数，再判断大于 0。and 左边不通过时，不会继续比较右边。
-        factors[name] = 1.0 / value if value is not None and value > 0 else None
+        value = _finite_float(valuations[column])
+        # 负数的倒数仍是负数。比如市盈率为 -20 倍，EP 就是 -5%，反映公司亏损。
+        # 估值倍数缺失或为零时无法取倒数。再次检查结果，避免极小值的倒数变成无穷大。
+        factors[name] = _finite_float(1.0 / value) if value is not None and value != 0 else None
     return factors
+
+
+def _size_factor(market_cap: float | None) -> float | None:
+    """总市值原值用亿元表示，乘一亿换成元后取自然对数。"""
+    return float(np.log(market_cap * 1e8)) if market_cap is not None and market_cap > 0 else None
+
+
+def _financial_factors(roe: float | None, growth: float | None) -> dict[str, float | None]:
+    """将财报百分数换为因子小数。例如 13.68% 对应 0.1368。"""
+    return {
+        "ROE": roe / 100 if roe is not None else None,
+        "REVG": growth / 100 if growth is not None else None,
+    }

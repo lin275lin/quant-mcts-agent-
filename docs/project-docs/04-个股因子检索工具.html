@@ -64,9 +64,9 @@
         <thead><tr><th scope="col">因子</th><th scope="col">数据源</th><th scope="col">怎么算</th></tr></thead>
         <tbody>
           <tr><td>14 个价量因子</td><td>BaoStock 前复权日线</td><td>用价格、成交量、成交额和换手率计算原有指标。</td></tr>
-          <tr><td><code>EP</code>、<code>BP</code>、<code>SP</code></td><td>BaoStock 日线中的 <code>peTTM</code>、<code>pbMRQ</code>、<code>psTTM</code></td><td>对有效的正倍数取倒数。</td></tr>
+          <tr><td><code>EP</code>、<code>BP</code>、<code>SP</code></td><td>BaoStock 日线中的 <code>peTTM</code>、<code>pbMRQ</code>、<code>psTTM</code></td><td>用 1 除以对应倍数，保留正负号。比如市盈率 −20 倍得到 EP −5%。倍数为零、无效或缺失时留空。</td></tr>
           <tr><td><code>ROE</code></td><td>东方财富财务接口披露的 <code>ROEJQ</code></td><td>取最新报告期的加权净资产收益率，再把百分数换为小数。</td></tr>
-          <tr><td><code>REVG</code></td><td>东方财富财务接口披露的 <code>TOTALOPERATEREVETZ</code></td><td>读取最新报告期的营业收入同比。</td></tr>
+          <tr><td><code>REVG</code></td><td>东方财富财务接口披露的 <code>TOTALOPERATEREVETZ</code></td><td>取最新报告期的营业收入同比，并把百分数换为小数。例如 1.82% 返回 0.0182。</td></tr>
           <tr><td><code>SIZE</code></td><td>百度直接提供的总市值</td><td>先把亿元换为元，再取自然对数。</td></tr>
         </tbody>
       </table>
@@ -118,12 +118,16 @@ finally:
     <p>从 <code>Project</code> 目录执行。</p>
     <!-- pre 保留代码示例的原始换行和空格。浏览器只显示这些命令。 -->
     <pre><code>python tools/fetch_stock_factors/fetch_stock_factors.py 600519
-python tools/fetch_stock_factors/fetch_stock_factors.py 600519 --end-date 2026-11-20</code></pre>
+python tools/fetch_stock_factors/fetch_stock_factors.py 600519 --end-date 2026-11-20
+python tools/fetch_stock_factors/fetch_stock_factors.py 600519 --raw-daily</code></pre>
+    <p>命令行的 <code>factor_count</code> 是字段总数，<code>valid_factor_count</code> 是实际有有限数值的因子数，<code>missing_factors</code> 列出终端显示为 <code>NULL</code> 的因子。每行依次显示英文缩写、数值、中文指标名。</p>
+    <p>下方的“核对用原始数据”列出 BaoStock 前复权行情和估值原值、百度股市通总市值及日期、东方财富财务百分数及报告期。公告日按接口提供值显示。核对时先在平台上选同一股票和日期，K 线选前复权，市盈率和市销率选滚动口径，财务选按报告期。加 <code>--raw-daily</code> 可把计算使用的全部日线打印成 CSV，用来核对动量和波动率。</p>
     <pre><code>from tools.fetch_stock_factors import fetch_stock_factor_vector
 
 result = fetch_stock_factor_vector("600519.SH")
 print(result["data_date"])
-print(result["vector"]["MOM20"])</code></pre>
+print(result["vector"]["MOM20"])
+print(result["metadata"])</code></pre>
     <p><code>vector</code> 可以按因子名读取，<code>vector_values</code> 是对应的列表，两者使用 <code>FACTOR_NAMES</code> 的顺序。需要查看这些原始因子怎样合成决策信号，可继续读<a href="03-个股评分与MCTS系数搜索.html">个股评分说明</a>。</p>
   </section>
 </main>

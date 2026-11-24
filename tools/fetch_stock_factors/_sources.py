@@ -7,7 +7,6 @@ from datetime import date, timedelta
 from threading import Lock
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 from config import LOOKBACK_CALENDAR_DAYS
@@ -57,8 +56,8 @@ def _daily_payload(symbol: str, start: str, end: str) -> dict[str, Any]:
     return payload
 
 
-def _parse_daily_bars(payload: dict[str, Any]) -> tuple[pd.DataFrame, dict[str, float | None]]:
-    """用接口列名和数据行重建日线表，并取最后一行的估值。"""
+def _parse_daily_bars(payload: dict[str, Any]) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """还原日线表，并保留最后一行的行情和估值原值供核对。"""
     # DataFrame 是一张可按列处理的表。接口多数数字以文本返回，需先转成数字。
     frame = pd.DataFrame(payload["rows"], columns=payload["fields"])
     for column in _PRICE_COLUMNS + _VALUATION_COLUMNS:
@@ -68,65 +67,98 @@ def _parse_daily_bars(payload: dict[str, Any]) -> tuple[pd.DataFrame, dict[str, 
     # 先按日期排序，再用日期作为行标签。iloc[-1] 取最后一行。
     frame = frame.sort_values("date").set_index("date")
     latest = frame.iloc[-1]
-    valuations = {column: _finite_float(latest[column]) for column in _VALUATION_COLUMNS}
+    latest_values: dict[str, Any] = {
+        column: _finite_float(latest[column]) for column in _PRICE_COLUMNS + _VALUATION_COLUMNS
+    }
+    latest_values["date"] = latest.name.date().isoformat()
     # 逗号分隔的两个结果按顺序返回。rename 把换手率统一命名为 turnover。
-    return frame[_PRICE_COLUMNS].rename(columns={"turn": "turnover"}), valuations
+    return frame[_PRICE_COLUMNS].rename(columns={"turn": "turnover"}), latest_values
 
 
-def _fetch_daily_bars(symbol: str, end: date) -> tuple[pd.DataFrame, dict[str, float | None]]:
-    """按日期取日线和估值。查询及整理表格各有自己的函数。"""
+def _fetch_daily_bars(symbol: str, end: date) -> tuple[pd.DataFrame, dict[str, Any], dict[str, Any]]:
+    """返回计算用日线、核对信息和接口回传的整段历史。"""
     # 日期减去 timedelta 会向前推一定数量的自然日，isoformat() 转成接口所需的文字。
     start = (end - timedelta(days=LOOKBACK_CALENDAR_DAYS)).isoformat()
-    payload = _daily_payload(symbol, start, end.isoformat())
-    return _parse_daily_bars(payload)
+    end_text = end.isoformat()
+    payload = _daily_payload(symbol, start, end_text)
+    bars, latest = _parse_daily_bars(payload)
+    metadata = {
+        "source": "BaoStock",
+        "adjustment": "前复权",
+        "requested_start": start,
+        "requested_end": end_text,
+        "first_date": bars.index[0].date().isoformat(),
+        "row_count": len(bars),
+        "latest": latest,
+    }
+    return bars, metadata, payload
 
 
-def _fetch_size(code: str) -> float | None:
-    """百度的总市值（亿元）转成元，再取自然对数。失败时可以返回缺失。"""
-    # 同一只股票的总市值有自己的缓存键，和日线、财务数据分开保存。
-    key = ("size", code)
+def _source_date(value: Any) -> str | None:
+    """把来源给出的日期统一成 YYYY-MM-DD。缺失和无法识别的日期留空。"""
+    parsed = pd.to_datetime(value, errors="coerce")
+    return parsed.date().isoformat() if pd.notna(parsed) else None
+
+
+def _fetch_market_cap(code: str) -> dict[str, Any]:
+    """读取百度股市通的总市值原值（亿元）和该条记录的日期。"""
+    # 旧的 size 缓存只保留对数。这里换一个键，保存原值和日期。
+    key = ("market-cap-raw", code)
     cached = _cache_read(*key)
     if cached is not None:
         return cached
 
+    result = {"source": "百度股市通", "date": None, "value_100m_cny": None}
     try:
         import akshare as ak
 
-        # 接口返回多行时，目前用 value 列的最后一行。
+        # 沿用原来取最后一行的逻辑。日期和总市值必须拿同一行。
         frame = ak.stock_zh_valuation_baidu(symbol=code, indicator="总市值", period="day")
         if frame is not None and not frame.empty:
-            market_cap = _finite_float(frame["value"].iloc[-1])
+            latest = frame.iloc[-1]
+            market_cap = _finite_float(latest["value"])
+            result["date"] = _source_date(latest.get("date"))
+            result["value_100m_cny"] = market_cap
             if market_cap is not None and market_cap > 0:
-                # 百度的值以亿元表示。先乘一亿转成元，再用 np.log() 取自然对数。
-                size = float(np.log(market_cap * 1e8))
-                _cache_write(size, *key)
-                return size
+                _cache_write(result, *key)
     except Exception:
         # 这个数据源失效时记录原因，下方返回 None，其他因子仍能使用。
         _LOGGER.debug("百度市值查询失败: %s", code, exc_info=True)
-    return None
+    return result
 
 
-def _fetch_financial_factors(symbol: str) -> dict[str, float | None]:
-    """按报告期读接口直接披露的加权 ROE 和营业收入同比。"""
-    # 财务用带交易所的代码作键，数据缺失时仍为两个因子分别保留位置。
-    key = ("financial", symbol)
+def _fetch_financial_indicators(symbol: str) -> dict[str, Any]:
+    """按报告期读取东方财富披露的百分数，以及对应的报告期。"""
+    # 旧的 financial-ratios 键保存的是换算后的小数。新键保留接口百分数和日期。
+    key = ("financial-raw", symbol)
     cached = _cache_read(*key)
     if cached is not None:
         return cached
 
     import akshare as ak
 
+    result = {
+        "source": "东方财富",
+        "report_date": None,
+        "announcement_date": None,
+        "ROEJQ": None,
+        "TOTALOPERATEREVETZ": None,
+    }
     frame = ak.stock_financial_analysis_indicator_em(symbol=symbol, indicator="按报告期")
     if frame is None or frame.empty:
-        return {"ROE": None, "REVG": None}
+        return result
 
     # ascending=False 是降序。按报告期从新到旧排列，iloc[0] 就是第一行。
     latest = frame.sort_values("REPORT_DATE", ascending=False).iloc[0]
-    # .get() 找不到字段时返回 None。ROE 除以 100 转成小数，营收同比按接口值返回。
+    # .get() 找不到字段时返回 None。公告日从原表读取，有值才记录。
     roe = _finite_float(latest.get("ROEJQ"))
     growth = _finite_float(latest.get("TOTALOPERATEREVETZ"))
-    result = {"ROE": roe / 100 if roe is not None else None, "REVG": growth}
+    result.update(
+        report_date=_source_date(latest.get("REPORT_DATE")),
+        announcement_date=_source_date(latest.get("NOTICE_DATE")),
+        ROEJQ=roe,
+        TOTALOPERATEREVETZ=growth,
+    )
     # 至少有一项成功取到才缓存。如果两项都没有，下次仍会查接口。
     if roe is not None or growth is not None:
         _cache_write(result, *key)
